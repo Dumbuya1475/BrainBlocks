@@ -27,6 +27,10 @@ export async function addModule(uid, mod) {
   });
 }
 
+export async function updateModule(uid, modId, data) {
+  await updateDoc(doc(db, 'users', uid, 'modules', modId), data);
+}
+
 export async function deleteModule(uid, modId) {
   await deleteDoc(doc(db, 'users', uid, 'modules', modId));
 }

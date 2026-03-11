@@ -78,6 +78,23 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
+### 3.1 Optional — Enable Gemini AI roadmaps
+
+Create a `.env` file in the project root using `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Then set:
+
+```bash
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
+VITE_GEMINI_MODEL=gemini-1.5-flash
+```
+
+This powers AI-generated weekly study roadmaps for custom modules.
+
 ---
 
 ### 4. Build for production
@@ -179,6 +196,8 @@ studyhub/
 │   │   └── appConfig.js    # App access mode placeholder for future restrictions
 │   ├── hooks/
 │   │   └── useAuth.jsx     # Auth context (Google + email login)
+│   ├── services/
+│   │   └── geminiRoadmap.js  # Gemini AI roadmap generator
 │   ├── components/
 │   │   ├── Layout.jsx      # Bottom nav bar
 │   │   └── Notif.jsx       # Toast notifications
@@ -211,8 +230,9 @@ studyhub/
 | 🔐 Auth | Sign in with Google or email/password |
 | 🎓 Academic Profile | Optional university, program, and class/group onboarding |
 | ⏱ Timer | Focus timer with per-session progress bar |
-| 📚 Custom Modules | Add your own subjects with custom duration, color, icon |
-| 📅 12-Week Tracker | Check off tasks week by week, synced to your account |
+| 📚 Custom Modules | Add your own subjects, focus time, daily study time, and target duration |
+| 🤖 AI Roadmaps | Generate Week 0 → Week N study plans for each custom module using Gemini |
+| 📅 AI Tracker | Track week-by-week tasks for each module roadmap, synced to your account |
 | 📓 Study Log | Log what you studied, how long, and your mood |
 | 👥 Share Profile | Enable a public link to share your progress with classmates |
 | 📲 PWA | Installs to home screen, works offline |

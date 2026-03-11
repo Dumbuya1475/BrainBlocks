@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getProfile, saveProfile, getProgress, getLogs, getPublicProfile, updatePublicProfile } from '../firebase/db';
-import { WEEKS } from '../data/curriculum';
+import { getProfile, saveProfile, getModules, getProgress, getLogs, getPublicProfile, updatePublicProfile } from '../firebase/db';
 import { Notif, useNotif } from '../components/Notif';
 import { APP_CONFIG, ACCESS_MODE_LABELS } from '../config/appConfig';
+import { getRoadmapStats } from '../utils/roadmapProgress';
 
 export default function Profile() {
   const { user, logout } = useAuth();
   const { notif, showNotif } = useNotif();
   const [profile,  setProfile]  = useState(null);
+  const [modules, setModules] = useState([]);
   const [progress, setProgress] = useState({ tasks:{} });
   const [logs,     setLogs]     = useState([]);
   const [shareOn,  setShareOn]  = useState(false);
@@ -26,12 +27,14 @@ export default function Profile() {
     if (!user?.uid) return;
     setLoading(true);
     try {
-      const [p, l, profileDoc, publicDoc] = await Promise.all([
+      const [mods, p, l, profileDoc, publicDoc] = await Promise.all([
+        getModules(user.uid),
         getProgress(user.uid),
         getLogs(user.uid),
         getProfile(user.uid),
         getPublicProfile(user.uid),
       ]);
+      setModules(mods);
       setProgress(p);
       setLogs(l);
       setProfile(profileDoc || null);
@@ -54,6 +57,7 @@ export default function Profile() {
     const trimmedUniversity = university.trim();
     const trimmedProgram = program.trim();
     const trimmedClassGroup = classGroup.trim();
+    const stats = getRoadmapStats(modules, progress.tasks || {});
     try {
       if (next) {
         await updatePublicProfile(user.uid, {
@@ -62,8 +66,8 @@ export default function Profile() {
           university: trimmedUniversity,
           program: trimmedProgram,
           classGroup: trimmedClassGroup,
-          weeksActive: WEEKS.filter((_,wi) => WEEKS[wi].tasks.some((_,ti) => progress.tasks?.[`${wi}-${ti}`])).length,
-          tasksComplete: Object.values(progress.tasks||{}).filter(Boolean).length,
+          weeksActive: stats.weeksActive,
+          tasksComplete: stats.doneTasks,
           studySessions: logs.length,
           totalMinutes: logs.reduce((a,l) => a+(l.duration||0), 0),
           shareEnabled: true,
@@ -121,9 +125,9 @@ export default function Profile() {
       .catch(() => showNotif('Failed to copy link.', 'error'));
   }
 
-  let totalTasks = 0, doneTasks = 0;
-  WEEKS.forEach((w,wi) => w.tasks.forEach((_,ti) => { totalTasks++; if(progress.tasks?.[`${wi}-${ti}`]) doneTasks++; }));
-  const pct = Math.round(doneTasks / totalTasks * 100);
+  const stats = getRoadmapStats(modules, progress.tasks || {});
+  const doneTasks = stats.doneTasks;
+  const pct = stats.pct;
   const totalMins = logs.reduce((a,l) => a+(l.duration||0), 0);
 
   return (
@@ -190,7 +194,7 @@ export default function Profile() {
       {/* Stats */}
       {!loading && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8, marginBottom:14 }}>
-          <div className="stat-box"><div className="stat-val">{pct}%</div><div className="stat-label">Curriculum Done</div></div>
+          <div className="stat-box"><div className="stat-val">{pct}%</div><div className="stat-label">Roadmap Done</div></div>
           <div className="stat-box"><div className="stat-val">{logs.length}</div><div className="stat-label">Study Sessions</div></div>
           <div className="stat-box"><div className="stat-val">{Math.floor(totalMins/60)}h</div><div className="stat-label">Total Study Time</div></div>
           <div className="stat-box"><div className="stat-val">{doneTasks}</div><div className="stat-label">Tasks Complete</div></div>
