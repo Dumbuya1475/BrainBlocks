@@ -54,6 +54,13 @@ export default function PublicProfile() {
           )}
           <h1 style={{ fontFamily:'var(--sans)', fontWeight:800, fontSize:26 }}>{profile.displayName}</h1>
           <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', marginTop:4 }}>Limkokwing University · Sierra Leone</p>
+          {(profile.university || profile.program || profile.classGroup) && (
+            <div style={{ marginTop:10, fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', lineHeight:1.8 }}>
+              {profile.university && <div>{profile.university}</div>}
+              {profile.program && <div>{profile.program}</div>}
+              {profile.classGroup && <div>{profile.classGroup}</div>}
+            </div>
+          )}
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:10, marginBottom:16 }}>

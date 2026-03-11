@@ -1,18 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getProgress, getLogs, updatePublicProfile } from '../firebase/db';
+import { getProfile, saveProfile, getProgress, getLogs, getPublicProfile, updatePublicProfile } from '../firebase/db';
 import { WEEKS } from '../data/curriculum';
 import { Notif, useNotif } from '../components/Notif';
+import { APP_CONFIG, ACCESS_MODE_LABELS } from '../config/appConfig';
 
 export default function Profile() {
   const { user, logout } = useAuth();
   const { notif, showNotif } = useNotif();
+  const [profile,  setProfile]  = useState(null);
   const [progress, setProgress] = useState({ tasks:{} });
   const [logs,     setLogs]     = useState([]);
   const [shareOn,  setShareOn]  = useState(false);
   const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [university, setUniversity] = useState('');
+  const [program, setProgram] = useState('');
+  const [classGroup, setClassGroup] = useState('');
 
-  const shareUrl = `${window.location.origin}/u/${user.uid}`;
+  const shareUrl = user?.uid ? `${window.location.origin}/u/${user.uid}` : '';
 
   useEffect(() => { load(); }, [user]);
 
@@ -20,9 +26,19 @@ export default function Profile() {
     if (!user?.uid) return;
     setLoading(true);
     try {
-      const [p, l] = await Promise.all([getProgress(user.uid), getLogs(user.uid)]);
+      const [p, l, profileDoc, publicDoc] = await Promise.all([
+        getProgress(user.uid),
+        getLogs(user.uid),
+        getProfile(user.uid),
+        getPublicProfile(user.uid),
+      ]);
       setProgress(p);
       setLogs(l);
+      setProfile(profileDoc || null);
+      setUniversity(profileDoc?.university || '');
+      setProgram(profileDoc?.program || '');
+      setClassGroup(profileDoc?.classGroup || '');
+      setShareOn(Boolean(publicDoc?.shareEnabled));
     } catch (e) {
       if (e?.code === 'permission-denied') showNotif('Firestore permission denied for profile stats.', 'error');
       else showNotif('Failed to load profile stats.', 'error');
@@ -35,11 +51,17 @@ export default function Profile() {
     if (!user?.uid) return;
     const next = !shareOn;
     setShareOn(next);
+    const trimmedUniversity = university.trim();
+    const trimmedProgram = program.trim();
+    const trimmedClassGroup = classGroup.trim();
     try {
       if (next) {
         await updatePublicProfile(user.uid, {
           displayName: user.displayName || 'StudyHub User',
           photoURL: user.photoURL || '',
+          university: trimmedUniversity,
+          program: trimmedProgram,
+          classGroup: trimmedClassGroup,
           weeksActive: WEEKS.filter((_,wi) => WEEKS[wi].tasks.some((_,ti) => progress.tasks?.[`${wi}-${ti}`])).length,
           tasksComplete: Object.values(progress.tasks||{}).filter(Boolean).length,
           studySessions: logs.length,
@@ -56,6 +78,40 @@ export default function Profile() {
       setShareOn(!next);
       if (e?.code === 'permission-denied') showNotif('Permission denied while updating public profile.', 'error');
       else showNotif('Failed to update sharing settings.', 'error');
+    }
+  }
+
+  async function saveAcademicDetails(e) {
+    e.preventDefault();
+    if (!user?.uid) return;
+
+    const nextProfile = {
+      university: university.trim(),
+      program: program.trim(),
+      classGroup: classGroup.trim(),
+      onboardingSeen: true,
+      profileCompletedAt: profile?.profileCompletedAt || new Date().toISOString(),
+    };
+
+    setSaving(true);
+    try {
+      await saveProfile(user.uid, nextProfile);
+      setProfile(prev => ({ ...(prev || {}), ...nextProfile }));
+
+      if (shareOn) {
+        await updatePublicProfile(user.uid, {
+          university: nextProfile.university,
+          program: nextProfile.program,
+          classGroup: nextProfile.classGroup,
+        });
+      }
+
+      showNotif('✓ Profile details saved!');
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Permission denied while saving profile details.', 'error');
+      else showNotif('Failed to save profile details.', 'error');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -91,7 +147,44 @@ export default function Profile() {
         <div>
           <div style={{ fontSize:16, fontWeight:700 }}>{user.displayName || 'Student'}</div>
           <div style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)' }}>{user.email}</div>
+          {(university || program || classGroup) && (
+            <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginTop:6, lineHeight:1.7 }}>
+              {university || 'University not set'}
+              {program ? ` · ${program}` : ''}
+              {classGroup ? ` · ${classGroup}` : ''}
+            </div>
+          )}
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom:14 }}>
+        <div className="card-label">🎓 Academic Profile</div>
+        <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', lineHeight:1.7, marginBottom:14 }}>
+          Access mode: {ACCESS_MODE_LABELS[APP_CONFIG.accessMode]}
+        </p>
+        <form onSubmit={saveAcademicDetails} style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          <input
+            className="input"
+            placeholder="University (optional)"
+            value={university}
+            onChange={e => setUniversity(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Program (optional)"
+            value={program}
+            onChange={e => setProgram(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Class / Group (optional)"
+            value={classGroup}
+            onChange={e => setClassGroup(e.target.value)}
+          />
+          <button className="btn btn-primary" type="submit" disabled={saving} style={{ alignSelf:'flex-start' }}>
+            {saving ? 'Saving...' : 'Save Profile Details'}
+          </button>
+        </form>
       </div>
 
       {/* Stats */}

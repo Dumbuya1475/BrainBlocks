@@ -90,6 +90,18 @@ This creates a `dist/` folder ready to deploy.
 
 ---
 
+## 🧭 Phase 1 Access Model
+
+- The app is currently **open access**.
+- New users complete a one-time onboarding step after sign-in.
+- Academic fields are optional and can be skipped or edited later:
+  - `university`
+  - `program`
+  - `classGroup`
+- Future restriction modes are prepared in `src/config/appConfig.js` but are **not enforced yet**.
+
+---
+
 ## 🌐 Deploy (Free hosting)
 
 ### Option A — Firebase Hosting (recommended, stays in the Google ecosystem)
@@ -101,6 +113,12 @@ npm run build
 firebase deploy
 ```
 You get a free URL like: `https://studyhub-abc.web.app`
+
+If you update Firestore permissions, deploy rules too:
+
+```bash
+firebase deploy --only firestore:rules
+```
 
 ### Option B — Netlify (easiest)
 1. Run `npm run build`
@@ -157,6 +175,8 @@ studyhub/
 │   ├── firebase/
 │   │   ├── config.js       # ← PASTE YOUR FIREBASE CONFIG HERE
 │   │   └── db.js           # All Firestore read/write functions
+│   ├── config/
+│   │   └── appConfig.js    # App access mode placeholder for future restrictions
 │   ├── hooks/
 │   │   └── useAuth.jsx     # Auth context (Google + email login)
 │   ├── components/
@@ -164,6 +184,7 @@ studyhub/
 │   │   └── Notif.jsx       # Toast notifications
 │   ├── pages/
 │   │   ├── AuthPage.jsx    # Login / register
+│   │   ├── Onboarding.jsx  # One-time optional academic profile setup
 │   │   ├── Dashboard.jsx   # Timer + today's study blocks
 │   │   ├── Tracker.jsx     # 12-week curriculum tracker
 │   │   ├── MyModules.jsx   # Add/delete custom study modules
@@ -188,12 +209,24 @@ studyhub/
 | Feature | Description |
 |---|---|
 | 🔐 Auth | Sign in with Google or email/password |
+| 🎓 Academic Profile | Optional university, program, and class/group onboarding |
 | ⏱ Timer | Focus timer with per-session progress bar |
 | 📚 Custom Modules | Add your own subjects with custom duration, color, icon |
 | 📅 12-Week Tracker | Check off tasks week by week, synced to your account |
 | 📓 Study Log | Log what you studied, how long, and your mood |
 | 👥 Share Profile | Enable a public link to share your progress with classmates |
 | 📲 PWA | Installs to home screen, works offline |
+
+---
+
+## 🔮 Phase 2 (Later)
+
+Possible future restriction modes:
+- university-only access
+- class-only access (example: DIT)
+- filtered discovery by academic group
+
+These are intentionally not enabled yet so you can improve the app first and collect feedback.
 
 ---
 
