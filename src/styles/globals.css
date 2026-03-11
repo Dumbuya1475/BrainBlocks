@@ -1,0 +1,165 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+:root {
+  --bg:       #0b0e14;
+  --surface:  #13181f;
+  --surface2: #1a2030;
+  --border:   #232b3a;
+  --accent:   #00e5ff;
+  --accent2:  #7c4dff;
+  --accent3:  #ff6d3a;
+  --green:    #00e676;
+  --yellow:   #ffd740;
+  --red:      #ff5252;
+  --text:     #e8eaf6;
+  --muted:    #5a6580;
+  --mono:     'Space Mono', monospace;
+  --sans:     'Syne', sans-serif;
+  --radius:   12px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 80% 5%,  rgba(0,229,255,0.04)  0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 10% 90%, rgba(124,77,255,0.05) 0%, transparent 70%);
+}
+
+button { cursor: pointer; font-family: inherit; }
+input, textarea { font-family: inherit; }
+a { color: inherit; text-decoration: none; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── UTILITIES ── */
+.mono { font-family: var(--mono); }
+.muted { color: var(--muted); }
+.accent { color: var(--accent); }
+
+/* ── CARD ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+}
+.card.green::before  { background: linear-gradient(90deg, var(--green),   var(--accent)); }
+.card.orange::before { background: linear-gradient(90deg, var(--accent3), var(--yellow)); }
+.card.purple::before { background: linear-gradient(90deg, var(--accent2), #e040fb); }
+.card.red::before    { background: linear-gradient(90deg, var(--red),     var(--accent3)); }
+
+.card-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* ── BUTTONS ── */
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  border: none;
+  border-radius: 7px;
+  padding: 9px 18px;
+  transition: all 0.15s;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-primary  { background: var(--accent);  color: var(--bg); }
+.btn-primary:hover  { background: #33eeff; transform: translateY(-1px); }
+.btn-purple   { background: var(--accent2); color: #fff; }
+.btn-purple:hover   { background: #9c6fff; }
+.btn-green    { background: var(--green);   color: var(--bg); }
+.btn-green:hover    { background: #33ff8e; }
+.btn-ghost    { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover    { color: var(--text); border-color: var(--muted); }
+.btn-danger   { background: transparent; color: var(--red); border: 1px solid rgba(255,82,82,0.3); }
+.btn-danger:hover   { background: rgba(255,82,82,0.1); }
+.btn-sm { padding: 6px 12px; font-size: 10px; }
+
+/* ── INPUTS ── */
+.input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 10px 14px;
+  width: 100%;
+  transition: border-color 0.15s;
+  outline: none;
+}
+.input:focus { border-color: var(--accent); }
+.input::placeholder { color: var(--muted); }
+
+textarea.input { resize: vertical; min-height: 80px; }
+
+/* ── BAR ── */
+.bar-row { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 5px; }
+.bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.bar-fill  { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 3px; transition: width 0.4s ease; }
+
+/* ── STAT BOX ── */
+.stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+.stat-val  { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--accent); line-height: 1; }
+.stat-label { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ── BADGE ── */
+.badge { display: inline-block; font-family: var(--mono); font-size: 9px; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.badge-accent  { background: rgba(0,229,255,0.1);  color: var(--accent);  border: 1px solid rgba(0,229,255,0.2); }
+.badge-green   { background: rgba(0,230,118,0.1);  color: var(--green);   border: 1px solid rgba(0,230,118,0.2); }
+.badge-purple  { background: rgba(124,77,255,0.1); color: var(--accent2); border: 1px solid rgba(124,77,255,0.2); }
+.badge-orange  { background: rgba(255,109,58,0.1); color: var(--accent3); border: 1px solid rgba(255,109,58,0.2); }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200; padding: 20px;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 100%; max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal h3 { font-size: 18px; font-weight: 800; margin-bottom: 16px; }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn  { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes glow    { 0%,100% { text-shadow: 0 0 30px rgba(0,229,255,0.3); } 50% { text-shadow: 0 0 55px rgba(0,229,255,0.65); } }
+@keyframes slideUp { from { transform:translateY(20px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+
+.fade-in  { animation: fadeIn  0.3s ease both; }
+.slide-up { animation: slideUp 0.3s ease both; }
