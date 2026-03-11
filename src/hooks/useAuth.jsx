@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
     if (!firebaseUser?.uid) return;
     try {
       await saveProfile(firebaseUser.uid, {
-        displayName: firebaseUser.displayName || fallbackName || 'StudyHub User',
+        displayName: firebaseUser.displayName || fallbackName || 'BrainBlocks User',
         email: firebaseUser.email || '',
         photoURL: firebaseUser.photoURL || '',
         uid: firebaseUser.uid,

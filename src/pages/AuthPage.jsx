@@ -12,10 +12,16 @@ export default function AuthPage() {
   const [error, setError]   = useState('');
   const [loading, setLoading] = useState(false);
 
-  function getAuthErrorMessage(e) {
+  function getAuthErrorMessage(e, method = 'generic') {
     const code = e?.code || '';
     if (code === 'auth/operation-not-allowed') {
-      return 'Sign-in method is disabled for the Firebase project used by this app. In Firebase Console for project brainblocks-e3e01, enable Email/Password and/or Google in Authentication → Sign-in method.';
+      if (method === 'email-register' || method === 'email-login') {
+        return 'Email/Password authentication is disabled for BrainBlocks. In Firebase Console for project brainblocks-e3e01, enable Email/Password in Authentication → Sign-in method.';
+      }
+      if (method === 'google') {
+        return 'Google sign-in is disabled for BrainBlocks. In Firebase Console for project brainblocks-e3e01, enable Google in Authentication → Sign-in method.';
+      }
+      return 'A required sign-in method is disabled in Firebase Console for project brainblocks-e3e01.';
     }
     if (code === 'auth/invalid-api-key') {
       return 'Invalid Firebase API key. Check src/firebase/config.js values.';
@@ -44,7 +50,7 @@ export default function AuthPage() {
 
   async function handleGoogle() {
     try { setLoading(true); await loginWithGoogle(); navigate('/'); }
-    catch(e) { setError(getAuthErrorMessage(e)); }
+    catch(e) { setError(getAuthErrorMessage(e, 'google')); }
     finally { setLoading(false); }
   }
 
@@ -54,7 +60,7 @@ export default function AuthPage() {
       if (mode === 'login') await loginWithEmail(email, pass);
       else await registerWithEmail(email, pass, name);
       navigate('/');
-    } catch(e) { setError(getAuthErrorMessage(e)); }
+    } catch(e) { setError(getAuthErrorMessage(e, mode === 'login' ? 'email-login' : 'email-register')); }
     finally { setLoading(false); }
   }
 
@@ -72,10 +78,10 @@ export default function AuthPage() {
             Limkokwing · SL
           </div>
           <h1 style={{ fontFamily:'var(--sans)', fontWeight:800, fontSize:36, lineHeight:1 }}>
-            Study<span style={{ color:'var(--accent)' }}>Hub</span>
+            Brain<span style={{ color:'var(--accent)' }}>Blocks</span>
           </h1>
           <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', marginTop:8 }}>
-            Your personal CS study companion
+            Your personal study companion
           </p>
         </div>
 

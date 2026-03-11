@@ -93,7 +93,7 @@ export default function MyModules() {
         durationWeeks: Number(durationWeeks),
       });
       setGeneratedRoadmap(roadmap);
-      showNotif('✓ AI roadmap generated!');
+      showNotif(roadmap?.generatedBy === 'fallback' ? 'Gemini quota hit — fallback roadmap generated.' : '✓ AI roadmap generated!');
     } catch (e) {
       showNotif(e?.message || 'Failed to generate roadmap.', 'error');
     } finally {
@@ -179,7 +179,7 @@ export default function MyModules() {
       await updateModule(user.uid, mod.id, { roadmap, goal: nextGoal });
       setModules(current => current.map(item => item.id === mod.id ? { ...item, roadmap, goal: nextGoal } : item));
       setExpandedId(mod.id);
-      showNotif('✓ AI roadmap updated!');
+      showNotif(roadmap?.generatedBy === 'fallback' ? 'Gemini quota hit — fallback roadmap saved.' : '✓ AI roadmap updated!');
     } catch (e) {
       showNotif(e?.message || 'Failed to generate roadmap.', 'error');
     } finally {

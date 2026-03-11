@@ -26,7 +26,7 @@ export default function PublicProfile() {
       <div style={{ fontSize:48, marginBottom:16 }}>⚠️</div>
       <h2 style={{ fontFamily:'var(--sans)', fontWeight:800, fontSize:22, marginBottom:8 }}>Could Not Load Profile</h2>
       <p style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--muted)', marginBottom:20 }}>{loadError}</p>
-      <Link to="/" className="btn btn-primary">Go to StudyHub</Link>
+      <Link to="/" className="btn btn-primary">Go to BrainBlocks</Link>
     </div>
   );
 
@@ -35,7 +35,7 @@ export default function PublicProfile() {
       <div style={{ fontSize:48, marginBottom:16 }}>🔒</div>
       <h2 style={{ fontFamily:'var(--sans)', fontWeight:800, fontSize:22, marginBottom:8 }}>Profile is Private</h2>
       <p style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--muted)', marginBottom:20 }}>This student hasn't enabled public sharing yet.</p>
-      <Link to="/" className="btn btn-primary">Go to StudyHub</Link>
+      <Link to="/" className="btn btn-primary">Go to BrainBlocks</Link>
     </div>
   );
 
@@ -46,7 +46,7 @@ export default function PublicProfile() {
       <div style={{ width:'100%', maxWidth:400 }} className="fade-in">
 
         <div style={{ textAlign:'center', marginBottom:28 }}>
-          <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--muted)', letterSpacing:3, textTransform:'uppercase', marginBottom:8 }}>StudyHub</div>
+          <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--muted)', letterSpacing:3, textTransform:'uppercase', marginBottom:8 }}>BrainBlocks</div>
           {profile.photoURL ? (
             <img src={profile.photoURL} alt="" style={{ width:72, height:72, borderRadius:'50%', border:'3px solid var(--accent)', marginBottom:12 }} />
           ) : (
@@ -79,7 +79,7 @@ export default function PublicProfile() {
 
         <div style={{ textAlign:'center', marginTop:20 }}>
           <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', marginBottom:12 }}>Want to track your own CS journey?</p>
-          <Link to="/" className="btn btn-primary" style={{ display:'inline-flex' }}>Open StudyHub</Link>
+          <Link to="/" className="btn btn-primary" style={{ display:'inline-flex' }}>Open BrainBlocks</Link>
         </div>
       </div>
     </div>

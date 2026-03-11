@@ -2,7 +2,7 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 
 const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
-const DEFAULT_MODEL = 'gemini-1.5-flash';
+const DEFAULT_MODEL = 'gemini-2.0-flash';
 
 function buildPrompt({ moduleName, goal, dailyStudyTime, durationWeeks }) {
   return `You are an expert curriculum designer.

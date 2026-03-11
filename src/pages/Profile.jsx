@@ -61,7 +61,7 @@ export default function Profile() {
     try {
       if (next) {
         await updatePublicProfile(user.uid, {
-          displayName: user.displayName || 'StudyHub User',
+          displayName: user.displayName || 'BrainBlocks User',
           photoURL: user.photoURL || '',
           university: trimmedUniversity,
           program: trimmedProgram,

@@ -82,13 +82,13 @@ export default function Onboarding() {
       <div style={{ width:'100%', maxWidth:460 }} className="fade-in">
         <div style={{ textAlign:'center', marginBottom:28 }}>
           <div style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', letterSpacing:3, textTransform:'uppercase', marginBottom:8 }}>
-            Phase 1 Setup
+            Welcome to BrainBlocks
           </div>
           <h1 style={{ fontFamily:'var(--sans)', fontWeight:800, fontSize:34, lineHeight:1.1 }}>
             Complete Your <span style={{ color:'var(--accent)' }}>Profile</span>
           </h1>
           <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', marginTop:10, lineHeight:1.7 }}>
-            Add your academic details now or skip and update them later.
+            Add your academic details now or skip and update them later. A quick walkthrough will appear after this step.
           </p>
         </div>
 

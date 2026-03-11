@@ -80,20 +80,39 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ### 3.1 Optional — Enable Gemini AI roadmaps
 
-Create a `.env` file in the project root using `.env.example`:
+Set client-side options in `.env` using `.env.example`:
 
 ```bash
 cp .env.example .env
 ```
 
-Then set:
+Then set (optional):
 
 ```bash
 VITE_GEMINI_API_KEY=your_gemini_api_key_here
-VITE_GEMINI_MODEL=gemini-1.5-flash
+VITE_GEMINI_MODEL=gemini-2.0-flash
+VITE_API_BASE_URL=
+VITE_FUNCTIONS_URL=https://us-central1-brainblocks-e3e01.cloudfunctions.net/generateRoadmap
 ```
 
-This powers AI-generated weekly study roadmaps for custom modules.
+Set your secure Gemini key in Firebase Secret Manager (server-side):
+
+```bash
+firebase functions:secrets:set GEMINI_API_KEY
+```
+
+Then deploy functions:
+
+```bash
+npm run deploy:functions
+```
+
+This powers AI-generated weekly study roadmaps. On the free plan, you can use `VITE_GEMINI_API_KEY` directly in local development instead of deploying functions.
+
+Notes:
+- In local Vite development, the app calls `VITE_FUNCTIONS_URL` directly by default.
+- In deployed hosting, the app uses `/api/generate-roadmap` through Firebase Hosting rewrites.
+- If you use the Firebase Functions emulator locally, set `VITE_FUNCTIONS_URL` to your emulator endpoint instead.
 
 ---
 
