@@ -26,14 +26,27 @@ export default function Dashboard() {
   useEffect(() => { loadData(); }, [user]);
 
   async function loadData() {
+    if (!user?.uid) return;
     setLoading(true);
-    const [mods, prog] = await Promise.all([getModules(user.uid), getProgress(user.uid)]);
-    const today = new Date().toDateString();
-    let p = prog;
-    if (p.lastReset !== today) { p = { ...p, sessions:{}, lastReset: today }; await saveProgress(user.uid, p); }
-    setModules(mods.length > 0 ? mods : DEFAULT_MODULES);
-    setProgress(p);
-    setLoading(false);
+    try {
+      const [mods, prog] = await Promise.all([getModules(user.uid), getProgress(user.uid)]);
+      const today = new Date().toDateString();
+      let p = prog;
+      if (p.lastReset !== today) {
+        p = { ...p, sessions: {}, lastReset: today };
+        await saveProgress(user.uid, p);
+      }
+      setModules(mods.length > 0 ? mods : DEFAULT_MODULES);
+      setProgress(p);
+    } catch (e) {
+      if (e?.code === 'permission-denied') {
+        showNotif('Firestore permission denied. Update rules for users/{uid} and subcollections.', 'error');
+      } else {
+        showNotif('Failed to load dashboard data.', 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   function selectModule(idx) {

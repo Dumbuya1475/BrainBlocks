@@ -14,20 +14,34 @@ export default function Tracker() {
   useEffect(() => { load(); }, [user]);
 
   async function load() {
+    if (!user?.uid) return;
     setLoading(true);
-    const p = await getProgress(user.uid);
-    setProgress(p);
-    setLoading(false);
+    try {
+      const p = await getProgress(user.uid);
+      setProgress(p);
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Firestore permission denied for tracker data.', 'error');
+      else showNotif('Failed to load tracker data.', 'error');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function toggleTask(wi, ti) {
+    if (!user?.uid) return;
     const key = `${wi}-${ti}`;
     const updated = {
       ...progress,
       tasks: { ...progress.tasks, [key]: !progress.tasks?.[key] }
     };
     setProgress(updated);
-    await saveProgress(user.uid, updated);
+    try {
+      await saveProgress(user.uid, updated);
+    } catch (e) {
+      setProgress(progress);
+      if (e?.code === 'permission-denied') showNotif('Permission denied while saving tracker progress.', 'error');
+      else showNotif('Failed to save tracker progress.', 'error');
+    }
   }
 
   const isWeekComplete = wi => WEEKS[wi].tasks.every((_,ti) => progress.tasks?.[`${wi}-${ti}`]);

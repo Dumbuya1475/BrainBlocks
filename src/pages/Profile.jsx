@@ -17,38 +17,52 @@ export default function Profile() {
   useEffect(() => { load(); }, [user]);
 
   async function load() {
+    if (!user?.uid) return;
     setLoading(true);
-    const [p, l] = await Promise.all([getProgress(user.uid), getLogs(user.uid)]);
-    setProgress(p);
-    setLogs(l);
-    setLoading(false);
+    try {
+      const [p, l] = await Promise.all([getProgress(user.uid), getLogs(user.uid)]);
+      setProgress(p);
+      setLogs(l);
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Firestore permission denied for profile stats.', 'error');
+      else showNotif('Failed to load profile stats.', 'error');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function toggleShare() {
+    if (!user?.uid) return;
     const next = !shareOn;
     setShareOn(next);
-    if (next) {
-      let done = 0, total = 0;
-      WEEKS.forEach((w,wi) => w.tasks.forEach((_,ti) => { total++; if(p.tasks?.[`${wi}-${ti}`]) done++; }));
-      await updatePublicProfile(user.uid, {
-        displayName: user.displayName || 'StudyHub User',
-        photoURL: user.photoURL || '',
-        weeksActive: WEEKS.filter((_,wi) => WEEKS[wi].tasks.some((_,ti) => progress.tasks?.[`${wi}-${ti}`])).length,
-        tasksComplete: Object.values(progress.tasks||{}).filter(Boolean).length,
-        studySessions: logs.length,
-        totalMinutes: logs.reduce((a,l) => a+(l.duration||0), 0),
-        shareEnabled: true,
-        uid: user.uid,
-      });
-      showNotif('✓ Public profile enabled!');
-    } else {
-      await updatePublicProfile(user.uid, { shareEnabled: false });
-      showNotif('Profile set to private', 'info');
+    try {
+      if (next) {
+        await updatePublicProfile(user.uid, {
+          displayName: user.displayName || 'StudyHub User',
+          photoURL: user.photoURL || '',
+          weeksActive: WEEKS.filter((_,wi) => WEEKS[wi].tasks.some((_,ti) => progress.tasks?.[`${wi}-${ti}`])).length,
+          tasksComplete: Object.values(progress.tasks||{}).filter(Boolean).length,
+          studySessions: logs.length,
+          totalMinutes: logs.reduce((a,l) => a+(l.duration||0), 0),
+          shareEnabled: true,
+          uid: user.uid,
+        });
+        showNotif('✓ Public profile enabled!');
+      } else {
+        await updatePublicProfile(user.uid, { shareEnabled: false });
+        showNotif('Profile set to private', 'info');
+      }
+    } catch (e) {
+      setShareOn(!next);
+      if (e?.code === 'permission-denied') showNotif('Permission denied while updating public profile.', 'error');
+      else showNotif('Failed to update sharing settings.', 'error');
     }
   }
 
   function copyLink() {
-    navigator.clipboard.writeText(shareUrl).then(() => showNotif('✓ Link copied!'));
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => showNotif('✓ Link copied!'))
+      .catch(() => showNotif('Failed to copy link.', 'error'));
   }
 
   let totalTasks = 0, doneTasks = 0;

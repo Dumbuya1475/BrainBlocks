@@ -23,36 +23,62 @@ export default function MyModules() {
   useEffect(() => { loadMods(); }, [user]);
 
   async function loadMods() {
+    if (!user?.uid) return;
     setLoading(true);
-    const mods = await getModules(user.uid);
-    setModules(mods);
-    setLoading(false);
+    try {
+      const mods = await getModules(user.uid);
+      setModules(mods);
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Firestore permission denied for modules.', 'error');
+      else showNotif('Failed to load modules.', 'error');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleAdd(e) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !user?.uid) return;
     setSaving(true);
-    await addModule(user.uid, { name: name.trim(), duration: Number(duration), color, icon });
-    setName(''); setDuration(30); setColor(COLORS[0]); setIcon(ICONS[0]);
-    setShowForm(false);
-    await loadMods();
-    showNotif('✓ Module added!');
-    setSaving(false);
+    try {
+      await addModule(user.uid, { name: name.trim(), duration: Number(duration), color, icon });
+      setName(''); setDuration(30); setColor(COLORS[0]); setIcon(ICONS[0]);
+      setShowForm(false);
+      await loadMods();
+      showNotif('✓ Module added!');
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Permission denied while adding module.', 'error');
+      else showNotif('Failed to add module.', 'error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete(id) {
-    await deleteModule(user.uid, id);
-    setModules(m => m.filter(x => x.id !== id));
-    showNotif('Module removed', 'info');
+    if (!user?.uid) return;
+    try {
+      await deleteModule(user.uid, id);
+      setModules(m => m.filter(x => x.id !== id));
+      showNotif('Module removed', 'info');
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Permission denied while deleting module.', 'error');
+      else showNotif('Failed to delete module.', 'error');
+    }
   }
 
   async function seedDefaults() {
+    if (!user?.uid) return;
     setSaving(true);
-    for (const m of DEFAULT_MODULES) await addModule(user.uid, m);
-    await loadMods();
-    showNotif('✓ Default modules added!');
-    setSaving(false);
+    try {
+      for (const m of DEFAULT_MODULES) await addModule(user.uid, m);
+      await loadMods();
+      showNotif('✓ Default modules added!');
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Permission denied while seeding modules.', 'error');
+      else showNotif('Failed to add default modules.', 'error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

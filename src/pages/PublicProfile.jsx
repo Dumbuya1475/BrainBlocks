@@ -6,14 +6,27 @@ export default function PublicProfile() {
   const { uid } = useParams();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    getPublicProfile(uid).then(p => { setProfile(p); setLoading(false); });
+    getPublicProfile(uid)
+      .then(p => { setProfile(p); setLoadError(''); })
+      .catch(() => setLoadError('Unable to load public profile right now.'))
+      .finally(() => setLoading(false));
   }, [uid]);
 
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontFamily:'var(--mono)', color:'var(--accent)', fontSize:13 }}>
       Loading profile...
+    </div>
+  );
+
+  if (loadError) return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', textAlign:'center', padding:20 }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>⚠️</div>
+      <h2 style={{ fontFamily:'var(--sans)', fontWeight:800, fontSize:22, marginBottom:8 }}>Could Not Load Profile</h2>
+      <p style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--muted)', marginBottom:20 }}>{loadError}</p>
+      <Link to="/" className="btn btn-primary">Go to StudyHub</Link>
     </div>
   );
 

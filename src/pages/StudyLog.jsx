@@ -21,33 +21,53 @@ export default function StudyLog() {
   useEffect(() => { loadLogs(); }, [user]);
 
   async function loadLogs() {
+    if (!user?.uid) return;
     setLoading(true);
-    const l = await getLogs(user.uid);
-    setLogs(l);
-    setLoading(false);
+    try {
+      const l = await getLogs(user.uid);
+      setLogs(l);
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Firestore permission denied for study logs.', 'error');
+      else showNotif('Failed to load study logs.', 'error');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleAdd(e) {
     e.preventDefault();
+    if (!user?.uid) return;
     setSaving(true);
-    await addLog(user.uid, {
-      subject: subject.trim(),
-      duration: Number(duration),
-      notes: notes.trim(),
-      mood,
-      dateStr: new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', weekday:'short' }),
-    });
-    setSubject(''); setDuration(60); setNotes(''); setMood(2);
-    setShowForm(false);
-    await loadLogs();
-    showNotif('✓ Log entry saved!');
-    setSaving(false);
+    try {
+      await addLog(user.uid, {
+        subject: subject.trim(),
+        duration: Number(duration),
+        notes: notes.trim(),
+        mood,
+        dateStr: new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', weekday:'short' }),
+      });
+      setSubject(''); setDuration(60); setNotes(''); setMood(2);
+      setShowForm(false);
+      await loadLogs();
+      showNotif('✓ Log entry saved!');
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Permission denied while saving log.', 'error');
+      else showNotif('Failed to save log entry.', 'error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete(id) {
-    await deleteLog(user.uid, id);
-    setLogs(l => l.filter(x => x.id !== id));
-    showNotif('Entry removed', 'info');
+    if (!user?.uid) return;
+    try {
+      await deleteLog(user.uid, id);
+      setLogs(l => l.filter(x => x.id !== id));
+      showNotif('Entry removed', 'info');
+    } catch (e) {
+      if (e?.code === 'permission-denied') showNotif('Permission denied while deleting log.', 'error');
+      else showNotif('Failed to delete log entry.', 'error');
+    }
   }
 
   const totalMins = logs.reduce((a, l) => a + (l.duration || 0), 0);

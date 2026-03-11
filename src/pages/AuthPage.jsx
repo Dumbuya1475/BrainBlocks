@@ -15,7 +15,19 @@ export default function AuthPage() {
   function getAuthErrorMessage(e) {
     const code = e?.code || '';
     if (code === 'auth/operation-not-allowed') {
-      return 'Sign-in method is disabled in Firebase. Enable Email/Password and/or Google in Firebase Console → Authentication → Sign-in method.';
+      return 'Sign-in method is disabled for the Firebase project used by this app. In Firebase Console for project brainblocks-e3e01, enable Email/Password and/or Google in Authentication → Sign-in method.';
+    }
+    if (code === 'auth/invalid-api-key') {
+      return 'Invalid Firebase API key. Check src/firebase/config.js values.';
+    }
+    if (code === 'auth/app-not-authorized') {
+      return 'App not authorized for this Firebase project. Verify your web app config in src/firebase/config.js.';
+    }
+    if (code === 'auth/configuration-not-found') {
+      return 'Authentication configuration not found. Ensure Email/Password or Google provider is enabled in the same Firebase project as your config.';
+    }
+    if (code === 'auth/unauthorized-domain') {
+      return 'This domain is not authorized. Add localhost and your site domain in Firebase Authentication → Settings → Authorized domains.';
     }
     if (code === 'auth/popup-closed-by-user') {
       return 'Google sign-in was canceled. Please try again.';
@@ -26,7 +38,8 @@ export default function AuthPage() {
     if (code === 'auth/user-not-found' || code === 'auth/wrong-password') {
       return 'Incorrect email or password.';
     }
-    return (e?.message || 'Authentication failed.').replace('Firebase: ', '');
+    const msg = (e?.message || 'Authentication failed.').replace('Firebase: ', '');
+    return code ? `${msg} (code: ${code})` : msg;
   }
 
   async function handleGoogle() {
