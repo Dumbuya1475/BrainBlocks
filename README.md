@@ -78,7 +78,7 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### 3.1 Optional — Enable Gemini AI roadmaps
+### 3.1 Optional — Enable Groq AI roadmaps
 
 Set client-side options in `.env` using `.env.example`:
 
@@ -89,30 +89,11 @@ cp .env.example .env
 Then set (optional):
 
 ```bash
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
-VITE_GEMINI_MODEL=gemini-2.0-flash
-VITE_API_BASE_URL=
-VITE_FUNCTIONS_URL=https://us-central1-brainblocks-e3e01.cloudfunctions.net/generateRoadmap
+VITE_GROQ_API_KEY=your_groq_api_key_here
+VITE_GROQ_MODEL=llama-3.1-8b-instant
 ```
 
-Set your secure Gemini key in Firebase Secret Manager (server-side):
-
-```bash
-firebase functions:secrets:set GEMINI_API_KEY
-```
-
-Then deploy functions:
-
-```bash
-npm run deploy:functions
-```
-
-This powers AI-generated weekly study roadmaps. On the free plan, you can use `VITE_GEMINI_API_KEY` directly in local development instead of deploying functions.
-
-Notes:
-- In local Vite development, the app calls `VITE_FUNCTIONS_URL` directly by default.
-- In deployed hosting, the app uses `/api/generate-roadmap` through Firebase Hosting rewrites.
-- If you use the Firebase Functions emulator locally, set `VITE_FUNCTIONS_URL` to your emulator endpoint instead.
+This powers AI-generated weekly study roadmaps directly from the app (no Firebase Functions required).
 
 ---
 
@@ -146,9 +127,9 @@ npm install -g firebase-tools
 firebase login
 firebase init hosting   # select your project, set dist as public folder, SPA: yes
 npm run build
-firebase deploy
+firebase deploy --only hosting
 ```
-You get a free URL like: `https://studyhub-abc.web.app`
+You get a free URL like: `https://brainblocks.web.app`
 
 If you update Firestore permissions, deploy rules too:
 
@@ -216,7 +197,7 @@ studyhub/
 │   ├── hooks/
 │   │   └── useAuth.jsx     # Auth context (Google + email login)
 │   ├── services/
-│   │   └── geminiRoadmap.js  # Gemini AI roadmap generator
+│   │   └── geminiRoadmap.js  # Groq AI roadmap generator
 │   ├── components/
 │   │   ├── Layout.jsx      # Bottom nav bar
 │   │   └── Notif.jsx       # Toast notifications
@@ -250,7 +231,7 @@ studyhub/
 | 🎓 Academic Profile | Optional university, program, and class/group onboarding |
 | ⏱ Timer | Focus timer with per-session progress bar |
 | 📚 Custom Modules | Add your own subjects, focus time, daily study time, and target duration |
-| 🤖 AI Roadmaps | Generate Week 0 → Week N study plans for each custom module using Gemini |
+| 🤖 AI Roadmaps | Generate Week 0 → Week N study plans for each custom module using Groq |
 | 📅 AI Tracker | Track week-by-week tasks for each module roadmap, synced to your account |
 | 📓 Study Log | Log what you studied, how long, and your mood |
 | 👥 Share Profile | Enable a public link to share your progress with classmates |
