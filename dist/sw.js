@@ -1,5 +1,5 @@
-const CACHE = 'studyhub-v2';
-const ASSETS = ['/', '/index.html', '/manifest.json'];
+const CACHE = 'brainblocks-v3';
+const ASSETS = ['/', '/index.html', '/manifest.json', '/icon.svg', '/icon-maskable.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(() => {})));

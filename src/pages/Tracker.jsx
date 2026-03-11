@@ -100,12 +100,13 @@ export default function Tracker() {
           </div>
 
           <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:14 }}>
-            {trackableModules.map(mod => {
+            {trackableModules.map((mod, modIndex) => {
               const moduleStats = getRoadmapStats([mod], progress.tasks || {});
               const active = mod.id === activeModule?.id;
               return (
                 <button
                   key={mod.id}
+                  data-tour={modIndex === 0 ? 'tracker-module' : undefined}
                   onClick={() => setActiveModuleId(mod.id)}
                   style={{
                     border:`1px solid ${active ? (mod.color || 'var(--accent2)') : 'var(--border)'}`,
@@ -117,7 +118,7 @@ export default function Tracker() {
                     textAlign:'left',
                   }}
                 >
-                  <div style={{ fontSize:12, fontWeight:700 }}>{mod.icon || '📘'} {mod.name}</div>
+                  <div style={{ fontSize:12, fontWeight:700 }}>{mod.icon || '📘'} {mod.moduleCode ? `${mod.moduleCode} · ` : ''}{mod.name}</div>
                   <div style={{ fontFamily:'var(--mono)', fontSize:10, marginTop:4 }}>{moduleStats.pct}% complete</div>
                 </button>
               );
@@ -128,7 +129,7 @@ export default function Tracker() {
             <>
               <div className="card" style={{ marginBottom:14 }}>
                 <div className="card-label">📚 Current Module</div>
-                <div style={{ fontSize:16, fontWeight:700 }}>{activeModule.name}</div>
+                <div style={{ fontSize:16, fontWeight:700 }}>{activeModule.moduleCode ? `${activeModule.moduleCode} · ` : ''}{activeModule.name}</div>
                 {activeModule.goal && (
                   <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginTop:6, lineHeight:1.7 }}>
                     Goal: {activeModule.goal}
@@ -171,7 +172,7 @@ export default function Tracker() {
                     {currentWeek.tasks.map((task, taskIndex) => {
                       const checked = progress.tasks?.[getTaskProgressKey(activeModule.id || activeModule.name, safeActiveWeek, taskIndex)];
                       return (
-                        <button key={taskIndex} onClick={() => toggleTask(activeModule.id || activeModule.name, safeActiveWeek, taskIndex)}
+                        <button data-tour={taskIndex === 0 ? 'tracker-task' : undefined} key={taskIndex} onClick={() => toggleTask(activeModule.id || activeModule.name, safeActiveWeek, taskIndex)}
                           style={{
                             display:'flex', alignItems:'flex-start', gap:10,
                             padding:'10px 12px', borderRadius:8,

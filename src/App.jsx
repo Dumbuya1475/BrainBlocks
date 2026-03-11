@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { getProfile } from './firebase/db';
 import Layout from './components/Layout';
+import Walkthrough from './components/Walkthrough';
 import AuthPage from './pages/AuthPage';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
@@ -76,18 +77,45 @@ function OnboardingRoute() {
 
 export default function App() {
   const { user } = useAuth();
+  const { loading: onboardingLoading, checking: onboardingChecking, onboardingSeen } = useOnboardingStatus();
+  const [installPrompt, setInstallPrompt] = useState(null);
+
+  useEffect(() => {
+    function handleBeforeInstallPrompt(e) {
+      e.preventDefault();
+      setInstallPrompt(e);
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  async function handleInstall() {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    setInstallPrompt(null);
+  }
+
   return (
-    <Routes>
-      <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
-      <Route path="/u/:uid" element={<PublicProfile />} />
-      <Route path="/onboarding" element={<PrivateRoute><OnboardingRoute /></PrivateRoute>} />
-      <Route path="/" element={<PrivateRoute><RequireOnboarding><Layout /></RequireOnboarding></PrivateRoute>}>
-        <Route index        element={<Dashboard />} />
-        <Route path="track" element={<Tracker />} />
-        <Route path="modules" element={<MyModules />} />
-        <Route path="log"   element={<StudyLog />} />
-        <Route path="profile" element={<Profile />} />
-      </Route>
-    </Routes>
+    <>
+      <Walkthrough
+        user={user}
+        installPrompt={installPrompt}
+        onInstall={handleInstall}
+        enabled={Boolean(user) && onboardingSeen && !onboardingLoading && !onboardingChecking}
+      />
+      <Routes>
+        <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
+        <Route path="/u/:uid" element={<PublicProfile />} />
+        <Route path="/onboarding" element={<PrivateRoute><OnboardingRoute /></PrivateRoute>} />
+        <Route path="/" element={<PrivateRoute><RequireOnboarding><Layout /></RequireOnboarding></PrivateRoute>}>
+          <Route index        element={<Dashboard />} />
+          <Route path="track" element={<Tracker />} />
+          <Route path="modules" element={<MyModules />} />
+          <Route path="log"   element={<StudyLog />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
+      </Routes>
+    </>
   );
 }

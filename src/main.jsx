@@ -5,6 +5,10 @@ import App from './App';
 import { AuthProvider } from './hooks/useAuth';
 import './styles/globals.css';
 
+const savedTheme = window.localStorage.getItem('bb-theme');
+const initialTheme = savedTheme === 'dark' ? 'dark' : 'light';
+document.documentElement.setAttribute('data-theme', initialTheme);
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});

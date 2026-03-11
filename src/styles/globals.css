@@ -1,6 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap');
 
 :root {
+  --bg:       #f8fafc;
+  --surface:  #ffffff;
+  --surface2: #f1f5f9;
+  --border:   #e2e8f0;
+  --accent:   #00619c;
+  --accent2:  #9146ff;
+  --accent3:  #f0736a;
+  --green:    #09ae73;
+  --yellow:   #e9b000;
+  --red:      #dc2626;
+  --text:     #0d3c5c;
+  --muted:    #64748b;
+  --mono:     'Space Mono', monospace;
+  --sans:     'Nunito', sans-serif;
+  --radius:   12px;
+}
+
+:root[data-theme='dark'] {
   --bg:       #0b0e14;
   --surface:  #13181f;
   --surface2: #1a2030;
@@ -13,9 +31,6 @@
   --red:      #ff5252;
   --text:     #e8eaf6;
   --muted:    #5a6580;
-  --mono:     'Space Mono', monospace;
-  --sans:     'Nunito', sans-serif;
-  --radius:   12px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -91,10 +106,11 @@ a { color: inherit; text-decoration: none; }
   gap: 6px;
 }
 .btn-primary  { background: var(--accent);  color: var(--bg); }
-.btn-primary:hover  { background: #33eeff; transform: translateY(-1px); }
+.btn-primary  { color: #fff; }
+.btn-primary:hover  { background: #00aabb; color: #fff; transform: translateY(-1px); }
 .btn-purple   { background: var(--accent2); color: #fff; }
 .btn-purple:hover   { background: #9c6fff; }
-.btn-green    { background: var(--green);   color: var(--bg); }
+.btn-green    { background: var(--green);   color: #052f1f; }
 .btn-green:hover    { background: #33ff8e; }
 .btn-ghost    { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 .btn-ghost:hover    { color: var(--text); border-color: var(--muted); }
@@ -163,3 +179,12 @@ textarea.input { resize: vertical; min-height: 80px; }
 
 .fade-in  { animation: fadeIn  0.3s ease both; }
 .slide-up { animation: slideUp 0.3s ease both; }
+
+.tour-highlight {
+  position: relative;
+  z-index: 450;
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(0, 97, 156, 0.15);
+  border-radius: 10px;
+}

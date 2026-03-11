@@ -42,6 +42,7 @@ export default function MyModules() {
   const [expandedId, setExpandedId] = useState(null);
 
   const [name,     setName]     = useState('');
+  const [moduleCode, setModuleCode] = useState('');
   const [goal,     setGoal]     = useState('');
   const [duration, setDuration] = useState(30);
   const [dailyStudyTime, setDailyStudyTime] = useState(45);
@@ -70,6 +71,7 @@ export default function MyModules() {
 
   function resetForm() {
     setName('');
+    setModuleCode('');
     setGoal('');
     setDuration(30);
     setDailyStudyTime(45);
@@ -88,6 +90,7 @@ export default function MyModules() {
     try {
       const roadmap = await generateModuleRoadmap({
         moduleName: name.trim(),
+        moduleCode: moduleCode.trim(),
         goal: goal.trim(),
         dailyStudyTime: formatDailyStudyTime(dailyStudyTime),
         durationWeeks: Number(durationWeeks),
@@ -109,6 +112,7 @@ export default function MyModules() {
     try {
       await addModule(user.uid, {
         name: name.trim(),
+        moduleCode: moduleCode.trim(),
         goal: goal.trim(),
         duration: Number(duration),
         dailyStudyTime: Number(dailyStudyTime),
@@ -150,6 +154,7 @@ export default function MyModules() {
         await addModule(user.uid, {
           ...m,
           goal: `Build stronger understanding in ${m.name}`,
+          moduleCode: '',
           dailyStudyTime: m.duration,
           durationWeeks: 12,
           roadmap: null,
@@ -172,6 +177,7 @@ export default function MyModules() {
       const nextGoal = mod.goal || `Build working skill in ${mod.name}`;
       const roadmap = await generateModuleRoadmap({
         moduleName: mod.name,
+        moduleCode: mod.moduleCode || '',
         goal: nextGoal,
         dailyStudyTime: formatDailyStudyTime(mod.dailyStudyTime || mod.duration || 30),
         durationWeeks: Number(mod.durationWeeks || 12),
@@ -229,6 +235,7 @@ export default function MyModules() {
                   <div style={{ flex:1 }}>
                     <div style={{ fontSize:14, fontWeight:600 }}>{mod.name}</div>
                     <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--muted)', lineHeight:1.8 }}>
+                      {mod.moduleCode ? `${mod.moduleCode} · ` : ''}
                       {mod.duration} min focus block
                       {mod.dailyStudyTime ? ` · ${mod.dailyStudyTime} min/day` : ''}
                       {mod.durationWeeks ? ` · ${mod.durationWeeks} weeks` : ''}
@@ -287,6 +294,7 @@ export default function MyModules() {
               <div className="card-label">➕ New Module</div>
               <form onSubmit={handleAdd} style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 <input className="input" placeholder="Module name (e.g. Machine Learning)" value={name} onChange={e => setName(e.target.value)} required />
+                <input className="input" placeholder="Module code (optional, e.g. CSC101)" value={moduleCode} onChange={e => setModuleCode(e.target.value.toUpperCase())} maxLength={20} />
                 <textarea
                   className="input"
                   placeholder="Learning goal (e.g. Build a solid SQL foundation and complete hands-on practice)"
@@ -342,7 +350,7 @@ export default function MyModules() {
                 </div>
 
                 <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                  <button className="btn btn-ghost" type="button" onClick={handleGenerateRoadmap} disabled={saving || generatingId === 'new'}>
+                  <button data-tour="modules-generate" className="btn btn-ghost" type="button" onClick={handleGenerateRoadmap} disabled={saving || generatingId === 'new'}>
                     {generatingId === 'new' ? 'Generating...' : '🤖 Generate AI Roadmap'}
                   </button>
                   <button className="btn btn-purple" type="submit" disabled={saving}>
@@ -355,7 +363,7 @@ export default function MyModules() {
               <RoadmapPreview roadmap={generatedRoadmap} />
             </div>
           ) : (
-            <button className="btn btn-purple" onClick={() => setShowForm(true)} style={{ width:'100%', justifyContent:'center', padding:12 }}>
+            <button data-tour="modules-add" className="btn btn-purple" onClick={() => setShowForm(true)} style={{ width:'100%', justifyContent:'center', padding:12 }}>
               ➕ Add New Module
             </button>
           )}

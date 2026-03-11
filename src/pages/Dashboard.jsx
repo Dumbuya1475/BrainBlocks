@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getModules, getProgress, saveProgress, getProfile, saveProfile } from '../firebase/db';
+import { getModules, getProgress, saveProgress } from '../firebase/db';
 import { DEFAULT_MODULES } from '../data/curriculum';
 import { Notif, useNotif } from '../components/Notif';
 
@@ -11,9 +11,6 @@ export default function Dashboard() {
   const [modules,  setModules]  = useState([]);
   const [progress, setProgress] = useState({ sessions:{}, tasks:{}, lastReset:'' });
   const [loading,  setLoading]  = useState(true);
-  const [showWalkthrough, setShowWalkthrough] = useState(false);
-  const [walkthroughStep, setWalkthroughStep] = useState(0);
-  const [installPrompt, setInstallPrompt] = useState(null);
 
   // Timer state
   const [activeIdx,    setActiveIdx]    = useState(null);
@@ -26,23 +23,13 @@ export default function Dashboard() {
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  useEffect(() => {
-    function handleBeforeInstallPrompt(e) {
-      e.preventDefault();
-      setInstallPrompt(e);
-    }
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
   useEffect(() => { loadData(); }, [user]);
 
   async function loadData() {
     if (!user?.uid) return;
     setLoading(true);
     try {
-      const [mods, prog, profile] = await Promise.all([getModules(user.uid), getProgress(user.uid), getProfile(user.uid)]);
+      const [mods, prog] = await Promise.all([getModules(user.uid), getProgress(user.uid)]);
       const today = new Date().toDateString();
       let p = prog;
       if (p.lastReset !== today) {
@@ -51,10 +38,6 @@ export default function Dashboard() {
       }
       setModules(mods.length > 0 ? mods : DEFAULT_MODULES);
       setProgress(p);
-      if (!profile?.walkthroughSeen) {
-        setWalkthroughStep(0);
-        setShowWalkthrough(true);
-      }
     } catch (e) {
       if (e?.code === 'permission-denied') {
         showNotif('Firestore permission denied. Update rules for users/{uid} and subcollections.', 'error');
@@ -118,28 +101,6 @@ export default function Dashboard() {
     showNotif('✓ Session marked complete!');
   }
 
-  async function finishWalkthrough() {
-    if (user?.uid) {
-      try {
-        await saveProfile(user.uid, {
-          walkthroughSeen: true,
-          walkthroughSeenAt: new Date().toISOString(),
-        });
-      } catch {}
-    }
-    setShowWalkthrough(false);
-    setWalkthroughStep(0);
-  }
-
-  async function handleInstall() {
-    if (installPrompt) {
-      await installPrompt.prompt();
-      setInstallPrompt(null);
-    } else {
-      showNotif('Use your browser menu to install BrainBlocks.', 'info');
-    }
-  }
-
   useEffect(() => () => clearInterval(intervalRef.current), []);
 
   const m = Math.floor(timerSec / 60).toString().padStart(2,'0');
@@ -149,68 +110,10 @@ export default function Dashboard() {
   const total = modules.length;
   const activeModule = activeIdx !== null ? modules[activeIdx] : null;
   const accentColor = activeModule?.color || 'var(--accent)';
-  const walkthroughSteps = [
-    {
-      title: 'Welcome to BrainBlocks',
-      text: 'BrainBlocks helps you focus, generate module roadmaps, and track progress week by week.',
-    },
-    {
-      title: 'Pick a module and focus',
-      text: 'Choose any module below, start the timer, and mark the session done when you finish.',
-    },
-    {
-      title: 'Generate AI roadmaps',
-      text: 'Open My Modules to add your own subject, set study time, and generate a Week 0 to Week N roadmap.',
-    },
-    {
-      title: 'Install the app',
-      text: installPrompt ? 'Install BrainBlocks to your device for a smoother app-like experience.' : 'You can install BrainBlocks later from your browser menu for quick access.',
-    },
-  ];
-  const activeWalkthrough = walkthroughSteps[walkthroughStep];
 
   return (
     <div style={{ padding:'20px 16px', maxWidth:520, margin:'0 auto' }}>
       <Notif notif={notif} />
-
-      {showWalkthrough && activeWalkthrough && (
-        <div className="modal-overlay">
-          <div className="modal slide-up">
-            <div className="card-label">👋 First-Time Walkthrough</div>
-            <h3>{activeWalkthrough.title}</h3>
-            <p style={{ color:'var(--muted)', lineHeight:1.7, marginBottom:18 }}>{activeWalkthrough.text}</p>
-            <div style={{ display:'flex', gap:6, marginBottom:18 }}>
-              {walkthroughSteps.map((_, idx) => (
-                <div key={idx} style={{ flex:1, height:6, borderRadius:99, background: idx <= walkthroughStep ? 'var(--accent)' : 'var(--border)' }} />
-              ))}
-            </div>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-              {walkthroughStep === walkthroughSteps.length - 1 && (
-                <button className="btn btn-ghost" onClick={handleInstall} type="button">
-                  Install App
-                </button>
-              )}
-              {walkthroughStep > 0 && (
-                <button className="btn btn-ghost" onClick={() => setWalkthroughStep(s => s - 1)} type="button">
-                  Back
-                </button>
-              )}
-              {walkthroughStep < walkthroughSteps.length - 1 ? (
-                <button className="btn btn-primary" onClick={() => setWalkthroughStep(s => s + 1)} type="button">
-                  Next
-                </button>
-              ) : (
-                <button className="btn btn-primary" onClick={finishWalkthrough} type="button">
-                  Get Started
-                </button>
-              )}
-              <button className="btn btn-ghost" onClick={finishWalkthrough} type="button">
-                Skip
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:22, flexWrap:'wrap', gap:10, paddingTop:8 }}>
@@ -263,7 +166,7 @@ export default function Dashboard() {
             </div>
 
             <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap' }}>
-              <button className="btn btn-primary" onClick={toggleTimer} style={{ minWidth:90, justifyContent:'center' }}>
+              <button data-tour="dashboard-start" className="btn btn-primary" onClick={toggleTimer} style={{ minWidth:90, justifyContent:'center' }}>
                 {running ? 'PAUSE' : activeModule ? 'START' : 'START'}
               </button>
               <button className="btn btn-ghost" onClick={resetTimer}>RESET</button>
@@ -280,7 +183,7 @@ export default function Dashboard() {
                 const isDone = progress.sessions?.[key];
                 const isActive = activeIdx === i;
                 return (
-                  <button key={i} onClick={() => selectModule(i)}
+                  <button key={i} data-tour={i === 0 ? 'dashboard-module' : undefined} onClick={() => selectModule(i)}
                     style={{
                       display:'flex', alignItems:'center', gap:10,
                       padding:'10px 12px', borderRadius:8,

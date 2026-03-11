@@ -89,39 +89,150 @@ function validateRoadmap(roadmap, requestedWeeks) {
   return roadmap;
 }
 
-function buildFallbackRoadmap({ moduleName, goal, dailyStudyTime, durationWeeks }) {
+function getTopicTemplates(moduleName, goal) {
+  const topic = `${moduleName} ${goal}`.toLowerCase();
+
+  if (/(web|html|css|javascript|react|frontend|backend)/.test(topic)) {
+    return [
+      {
+        title: 'Foundations & setup',
+        tasks: ['Set up the project workspace', 'Learn the core syntax and structure', 'Build a basic page or starter screen', 'Write setup notes and commands'],
+      },
+      {
+        title: 'Core concepts',
+        tasks: ['Study layouts and reusable components', 'Practice forms and user input', 'Build a small interactive feature', 'Review errors and refactor'],
+      },
+      {
+        title: 'Data & integration',
+        tasks: ['Connect data to the interface', 'Handle loading and empty states', 'Test data flow with sample records', 'Document the integration steps'],
+      },
+      {
+        title: 'Project sprint',
+        tasks: ['Build a mini feature from start to finish', 'Polish styling and usability', 'Fix bugs from manual testing', 'Prepare a short demo summary'],
+      },
+    ];
+  }
+
+  if (/(sql|database|mysql|postgres|db|query)/.test(topic)) {
+    return [
+      {
+        title: 'Database setup',
+        tasks: ['Set up the database environment', 'Create core tables and fields', 'Insert sample records', 'Verify data with simple queries'],
+      },
+      {
+        title: 'Query practice',
+        tasks: ['Practice SELECT and WHERE queries', 'Use ORDER BY and LIMIT', 'Write UPDATE and DELETE queries safely', 'Summarize query patterns'],
+      },
+      {
+        title: 'Relationships & joins',
+        tasks: ['Model table relationships', 'Practice JOIN queries', 'Add constraints and keys', 'Test data integrity cases'],
+      },
+      {
+        title: 'Mini database project',
+        tasks: ['Design a small schema for a use case', 'Populate realistic sample data', 'Write a task-based query set', 'Export and document the work'],
+      },
+    ];
+  }
+
+  if (/(network|communication|tcp|ip|dns|routing|security)/.test(topic)) {
+    return [
+      {
+        title: 'Networking basics',
+        tasks: ['Define core networking terms', 'Map common protocols to their uses', 'Identify local device network settings', 'Write a one-page concept summary'],
+      },
+      {
+        title: 'Protocol deep dive',
+        tasks: ['Study TCP/IP layers', 'Trace a request from client to server', 'Compare HTTP and HTTPS', 'Practice explaining each protocol'],
+      },
+      {
+        title: 'Network tools practice',
+        tasks: ['Use command-line networking tools', 'Capture and inspect a sample request', 'Draw a network diagram', 'Review troubleshooting steps'],
+      },
+      {
+        title: 'Applied scenario work',
+        tasks: ['Solve a small network case study', 'Document security risks and fixes', 'Present a simple architecture flow', 'Review weak concepts'],
+      },
+    ];
+  }
+
+  if (/(programming|python|java|c\+\+|algorithm|coding|software)/.test(topic)) {
+    return [
+      {
+        title: 'Language basics',
+        tasks: ['Set up the development environment', 'Practice variables and control flow', 'Write 3 short exercises', 'Review syntax mistakes'],
+      },
+      {
+        title: 'Functions & structure',
+        tasks: ['Write reusable functions', 'Practice lists, arrays, or objects', 'Solve 2 logic problems', 'Document key patterns'],
+      },
+      {
+        title: 'Problem solving',
+        tasks: ['Implement a mini console or script project', 'Debug edge cases', 'Refactor for readability', 'Add comments to explain logic'],
+      },
+      {
+        title: 'Build & review',
+        tasks: ['Complete a small end-to-end project', 'Test inputs and outputs', 'Fix remaining bugs', 'Prepare a final summary'],
+      },
+    ];
+  }
+
+  return [
+    {
+      title: 'Setup & orientation',
+      tasks: ['Set up the study workspace', 'Outline the main topics', 'Create a study checklist', 'Review the weekly goal'],
+    },
+    {
+      title: 'Core learning',
+      tasks: ['Study the main concept for the week', 'Practice with 2 hands-on tasks', 'Write concise notes', 'List open questions'],
+    },
+    {
+      title: 'Applied practice',
+      tasks: ['Work on a small practical task', 'Review mistakes and weak spots', 'Repeat one key exercise', 'Update your progress notes'],
+    },
+    {
+      title: 'Consolidation',
+      tasks: ['Summarize what you learned', 'Test yourself without notes', 'Improve one unfinished task', 'Plan the next milestone'],
+    },
+  ];
+}
+
+function rotateTemplates(templates, index) {
+  return templates[index % templates.length];
+}
+
+function buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, durationWeeks }) {
   const totalWeeks = Number(durationWeeks);
   const focus = moduleName.trim();
   const target = goal.trim();
+  const code = moduleCode?.trim();
+  const templates = getTopicTemplates(focus, target);
 
   const weeks = Array.from({ length: totalWeeks + 1 }, (_, week) => {
     if (week === 0) {
       return {
         week: 0,
-        title: `Week 0 - Setup for ${focus}`,
+        title: `Week 0 - ${focus} setup`,
         tasks: [
-          `Define a clear ${focus} study target`,
+          `Define the main target for ${code ? `${code} ${focus}` : focus}`,
           `Set up notes, folders, and tools for ${focus}`,
-          `Create a ${dailyStudyTime} study routine`,
-          `List key topics needed for ${target || focus}`,
+          `Create a ${dailyStudyTime} routine for this module`,
+          `Break ${target || focus} into weekly checkpoints`,
         ],
       };
     }
 
+    const template = rotateTemplates(templates, week - 1);
+
     return {
       week,
-      title: `Week ${week} - ${focus} Practice`,
-      tasks: [
-        `Study the core topic for Week ${week}`,
-        `Complete 2 practical exercises in ${focus}`,
-        `Write concise notes and summary points`,
-        `Review weak areas and plan the next session`,
-      ],
+      title: `Week ${week} - ${focus} ${template.title}`,
+      tasks: template.tasks.map(task => task.replace(/the week/gi, `Week ${week}`).replace(/module/gi, focus)),
     };
   });
 
   return {
     module: focus,
+    moduleCode: code || '',
     goal: target,
     weeks,
     generatedBy: 'fallback',
@@ -211,7 +322,7 @@ async function generateViaProxy({ moduleName, goal, dailyStudyTime, durationWeek
   return validateRoadmap(JSON.parse(rawText), durationWeeks);
 }
 
-export async function generateModuleRoadmap({ moduleName, goal, dailyStudyTime, durationWeeks }) {
+export async function generateModuleRoadmap({ moduleName, moduleCode = '', goal, dailyStudyTime, durationWeeks }) {
   try {
     if (CLIENT_API_KEY.trim()) {
       return await generateViaGeminiClient({ moduleName, goal, dailyStudyTime, durationWeeks });
@@ -220,7 +331,7 @@ export async function generateModuleRoadmap({ moduleName, goal, dailyStudyTime, 
     return await generateViaProxy({ moduleName, goal, dailyStudyTime, durationWeeks });
   } catch (error) {
     if (shouldUseFallback(error)) {
-      return buildFallbackRoadmap({ moduleName, goal, dailyStudyTime, durationWeeks });
+      return buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, durationWeeks });
     }
     throw error;
   }

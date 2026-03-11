@@ -5,6 +5,24 @@ import { getProfile, saveProfile } from '../firebase/db';
 import { Notif, useNotif } from '../components/Notif';
 import { APP_CONFIG, ACCESS_MODE_LABELS } from '../config/appConfig';
 
+const COURSE_CATEGORY_OPTIONS = [
+  'Tech',
+  'Business',
+  'Accounting',
+  'Engineering',
+  'Data Science',
+  'Cybersecurity',
+  'Finance',
+  'Entrepreneurship',
+  'Health Sciences',
+  'Law',
+  'Education',
+  'Arts & Design',
+  'Media & Communication',
+  'Agriculture',
+  'Project Management',
+];
+
 export default function Onboarding() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -12,6 +30,9 @@ export default function Onboarding() {
   const [university, setUniversity] = useState('');
   const [program, setProgram] = useState('');
   const [classGroup, setClassGroup] = useState('');
+  const [gender, setGender] = useState('');
+  const [courseCategories, setCourseCategories] = useState([]);
+  const [customCategory, setCustomCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -27,6 +48,8 @@ export default function Onboarding() {
         setUniversity(profile.university || '');
         setProgram(profile.program || '');
         setClassGroup(profile.classGroup || '');
+        setGender(profile.gender || '');
+        setCourseCategories(Array.isArray(profile.courseCategories) ? profile.courseCategories : []);
       } catch (e) {
         if (active) showNotif('Could not load profile setup.', 'error');
       } finally {
@@ -38,6 +61,25 @@ export default function Onboarding() {
     return () => { active = false; };
   }, [user]);
 
+  function toggleCategory(category) {
+    setCourseCategories(prev => (
+      prev.includes(category)
+        ? prev.filter(item => item !== category)
+        : [...prev, category]
+    ));
+  }
+
+  function addCustomCategory() {
+    const value = customCategory.trim();
+    if (!value) return;
+
+    const exists = courseCategories.some(item => item.toLowerCase() === value.toLowerCase());
+    if (!exists) {
+      setCourseCategories(prev => [...prev, value]);
+    }
+    setCustomCategory('');
+  }
+
   async function handleSave(e) {
     e.preventDefault();
     if (!user?.uid) return;
@@ -47,8 +89,11 @@ export default function Onboarding() {
         university: university.trim(),
         program: program.trim(),
         classGroup: classGroup.trim(),
+        gender,
+        courseCategories,
         onboardingSeen: true,
         profileCompletedAt: new Date().toISOString(),
+        walkthroughSeen: false,
       });
       navigate('/', { replace: true });
     } catch (e) {
@@ -66,6 +111,7 @@ export default function Onboarding() {
       await saveProfile(user.uid, {
         onboardingSeen: true,
         onboardingSkippedAt: new Date().toISOString(),
+        walkthroughSeen: false,
       });
       navigate('/', { replace: true });
     } catch (e) {
@@ -120,6 +166,68 @@ export default function Onboarding() {
                 value={classGroup}
                 onChange={e => setClassGroup(e.target.value)}
               />
+
+              <div style={{ marginTop:4 }}>
+                <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:8 }}>
+                  Gender
+                </div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <button
+                    type="button"
+                    className={gender === 'Male' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
+                    onClick={() => setGender('Male')}
+                  >
+                    Male
+                  </button>
+                  <button
+                    type="button"
+                    className={gender === 'Female' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
+                    onClick={() => setGender('Female')}
+                  >
+                    Female
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginTop:4 }}>
+                <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:8 }}>
+                  Course Categories
+                </div>
+                <p style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--muted)', marginBottom:8 }}>
+                  Pick one or more categories that match your interests.
+                </p>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 }}>
+                  {COURSE_CATEGORY_OPTIONS.map(category => (
+                    <button
+                      key={category}
+                      type="button"
+                      className={courseCategories.includes(category) ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
+                      onClick={() => toggleCategory(category)}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <input
+                    className="input"
+                    style={{ flex:'1 1 220px' }}
+                    placeholder="Add another category"
+                    value={customCategory}
+                    onChange={e => setCustomCategory(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomCategory();
+                      }
+                    }}
+                  />
+                  <button type="button" className="btn btn-ghost" onClick={addCustomCategory}>
+                    Add
+                  </button>
+                </div>
+              </div>
 
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:6 }}>
                 <button className="btn btn-purple" type="submit" disabled={saving}>

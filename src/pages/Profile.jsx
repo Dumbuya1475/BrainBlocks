@@ -18,10 +18,23 @@ export default function Profile() {
   const [university, setUniversity] = useState('');
   const [program, setProgram] = useState('');
   const [classGroup, setClassGroup] = useState('');
+  const [theme, setTheme] = useState(() => {
+    const saved = window.localStorage.getItem('bb-theme');
+    return saved === 'dark' ? 'dark' : 'light';
+  });
 
   const shareUrl = user?.uid ? `${window.location.origin}/u/${user.uid}` : '';
 
   useEffect(() => { load(); }, [user]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    window.localStorage.setItem('bb-theme', theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  }
 
   async function load() {
     if (!user?.uid) return;
@@ -208,7 +221,7 @@ export default function Profile() {
           Enable a public profile so classmates can see your progress stats. They can't see your notes or logs — only your overall numbers.
         </p>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button className={shareOn ? 'btn btn-ghost' : 'btn btn-purple'} onClick={toggleShare}>
+          <button data-tour="profile-share" className={shareOn ? 'btn btn-ghost' : 'btn btn-purple'} onClick={toggleShare}>
             {shareOn ? '🔒 Make Private' : '🌐 Enable Public Profile'}
           </button>
           {shareOn && (
@@ -220,6 +233,16 @@ export default function Profile() {
             {shareUrl}
           </div>
         )}
+      </div>
+
+      <div className="card" style={{ marginBottom:14 }}>
+        <div className="card-label">🌓 Appearance</div>
+        <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', lineHeight:1.7, marginBottom:12 }}>
+          Light theme is the default. You can switch to dark theme any time.
+        </p>
+        <button className="btn btn-ghost" onClick={toggleTheme}>
+          {theme === 'dark' ? '☀️ Switch to Light' : '🌙 Switch to Dark'}
+        </button>
       </div>
 
       {/* Sign out */}
