@@ -4,6 +4,8 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signInWithCredential,
+  GoogleAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -11,6 +13,8 @@ import {
 } from 'firebase/auth';
 import { auth, provider } from '../firebase/config';
 import { saveProfile } from '../firebase/db';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 
 const AuthContext = createContext(null);
 
@@ -48,6 +52,29 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function loginWithGoogle() {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const nativeResult = await FirebaseAuthentication.signInWithGoogle();
+        const idToken = nativeResult?.credential?.idToken || null;
+        const accessToken = nativeResult?.credential?.accessToken || null;
+
+        if (!idToken && !accessToken) {
+          const err = new Error('Native Google sign-in returned no credential token.');
+          err.code = 'auth/native-google-no-token';
+          throw err;
+        }
+
+        const credential = GoogleAuthProvider.credential(idToken, accessToken);
+        const result = await signInWithCredential(auth, credential);
+        await syncProfileSafe(result.user);
+        return result.user;
+      } catch (e) {
+        const err = new Error(e?.message || 'Native Google sign-in failed.');
+        err.code = e?.code || 'auth/native-google-failed';
+        throw err;
+      }
+    }
+
     try {
       const result = await signInWithPopup(auth, provider);
       await syncProfileSafe(result.user);

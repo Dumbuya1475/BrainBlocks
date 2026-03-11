@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "129015662920",
+    "firebase_url": "https://brainblocks-e3e01-default-rtdb.firebaseio.com",
+    "project_id": "brainblocks-e3e01",
+    "storage_bucket": "brainblocks-e3e01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:129015662920:android:9d0bad663dc2d55b808b7d",
+        "android_client_info": {
+          "package_name": "com.brainblocks.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "129015662920-fqdjp52usgras6eu40raou7cbqbkd58o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.brainblocks.app",
+            "certificate_hash": "5fe78c8ff7053eebddd831d3c81544c325233720"
+          }
+        },
+        {
+          "client_id": "129015662920-stk0i8avn73ks8cbrutjmc888trflvni.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKKS_gO848w_MRhSuxwhaLZLJKsZmWanQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "129015662920-stk0i8avn73ks8cbrutjmc888trflvni.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

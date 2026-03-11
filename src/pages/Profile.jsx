@@ -1,12 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, saveProfile, getModules, getProgress, getLogs, getPublicProfile, updatePublicProfile } from '../firebase/db';
 import { Notif, useNotif } from '../components/Notif';
 import { APP_CONFIG, ACCESS_MODE_LABELS } from '../config/appConfig';
 import { getRoadmapStats } from '../utils/roadmapProgress';
+import { requestNotificationPermission, scheduleDailyReminder, cancelDailyReminder, isNativePlatform, getNotificationPermissionStatus } from '../utils/nativeNotifications';
+import html2canvas from 'html2canvas';
+
+function computeStreak(logs) {
+  if (!logs.length) return 0;
+  const days = new Set(
+    logs.map(l => {
+      try { const d = new Date(l.dateStr || l.createdAt); return isNaN(d) ? null : d.toDateString(); }
+      catch { return null; }
+    }).filter(Boolean)
+  );
+  let streak = 0;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  while (days.has(d.toDateString())) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
 
 export default function Profile() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const { notif, showNotif } = useNotif();
   const [profile,  setProfile]  = useState(null);
   const [modules, setModules] = useState([]);
@@ -15,6 +37,10 @@ export default function Profile() {
   const [shareOn,  setShareOn]  = useState(false);
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [reminderTime, setReminderTime] = useState(() => localStorage.getItem('bb-reminder') || '');
+  const [reminderEnabled, setReminderEnabled] = useState(() => localStorage.getItem('bb-reminder-on') === '1');
+  const statsRef = useRef(null);
   const [university, setUniversity] = useState('');
   const [program, setProgram] = useState('');
   const [classGroup, setClassGroup] = useState('');
@@ -142,6 +168,69 @@ export default function Profile() {
   const doneTasks = stats.doneTasks;
   const pct = stats.pct;
   const totalMins = logs.reduce((a,l) => a+(l.duration||0), 0);
+  const streak = computeStreak(logs);
+
+  async function downloadStatsCard() {
+    if (!statsRef.current) return;
+    setDownloading(true);
+    try {
+      const btn = statsRef.current.querySelector('[data-no-capture]');
+      const wasHidden = btn?.style.display;
+      if (btn) btn.style.display = 'none';
+      // Wait for all images to load
+      const images = statsRef.current.querySelectorAll('img');
+      await Promise.all(
+        Array.from(images).map(img => 
+          new Promise(resolve => {
+            if (img.complete) resolve();
+            else { img.onload = resolve; img.onerror = resolve; }
+          })
+        )
+      );
+      // Small delay to ensure rendering
+      await new Promise(r => setTimeout(r, 200));
+      const canvas = await html2canvas(statsRef.current, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#ffffff',
+        scale: 2,
+      });
+      if (btn) btn.style.display = wasHidden || '';
+      const link = document.createElement('a');
+      link.download = `${user?.displayName || 'profile'}-brainblocks-stats.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (e) { console.error(e); }
+    finally { setDownloading(false); }
+  }
+
+  async function saveReminder(time, enabled) {
+    localStorage.setItem('bb-reminder', time);
+    localStorage.setItem('bb-reminder-on', enabled ? '1' : '0');
+    setReminderTime(time);
+    setReminderEnabled(enabled);
+
+    if (!enabled || !time) {
+      await cancelDailyReminder();
+      return;
+    }
+
+    const before = await getNotificationPermissionStatus();
+    const permission = await requestNotificationPermission();
+    if (permission !== 'granted') {
+      showNotif('Notification permission denied.', 'error');
+      return;
+    }
+
+    if (isNativePlatform()) {
+      await scheduleDailyReminder(time);
+      if (before === 'granted') {
+        showNotif('✓ Reminder scheduled. Permission was already granted in phone settings.');
+      } else {
+        showNotif('✓ Daily reminder scheduled on your phone!');
+      }
+    }
+  }
 
   return (
     <div style={{ padding:'20px 16px', maxWidth:520, margin:'0 auto' }}>
@@ -198,7 +287,7 @@ export default function Profile() {
             value={classGroup}
             onChange={e => setClassGroup(e.target.value)}
           />
-          <button className="btn btn-primary" type="submit" disabled={saving} style={{ alignSelf:'flex-start' }}>
+          <button data-tour="profile-save" className="btn btn-primary" type="submit" disabled={saving} style={{ alignSelf:'flex-start' }}>
             {saving ? 'Saving...' : 'Save Profile Details'}
           </button>
         </form>
@@ -206,11 +295,18 @@ export default function Profile() {
 
       {/* Stats */}
       {!loading && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8, marginBottom:14 }}>
-          <div className="stat-box"><div className="stat-val">{pct}%</div><div className="stat-label">Roadmap Done</div></div>
-          <div className="stat-box"><div className="stat-val">{logs.length}</div><div className="stat-label">Study Sessions</div></div>
-          <div className="stat-box"><div className="stat-val">{Math.floor(totalMins/60)}h</div><div className="stat-label">Total Study Time</div></div>
-          <div className="stat-box"><div className="stat-val">{doneTasks}</div><div className="stat-label">Tasks Complete</div></div>
+        <div ref={statsRef} className="card" style={{ marginBottom:14, padding:16 }}>
+          <div className="card-label">📊 Your Stats</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8, marginBottom:12 }}>
+            <div className="stat-box"><div className="stat-val">{pct}%</div><div className="stat-label">Roadmap Done</div></div>
+            <div className="stat-box"><div className="stat-val">{logs.length}</div><div className="stat-label">Study Sessions</div></div>
+            <div className="stat-box"><div className="stat-val">{Math.floor(totalMins/60)}h</div><div className="stat-label">Total Study Time</div></div>
+            <div className="stat-box"><div className="stat-val">{doneTasks}</div><div className="stat-label">Tasks Complete</div></div>
+            <div className="stat-box" style={{ gridColumn:'1/-1' }}><div className="stat-val" style={{ color:'var(--accent3)' }}>{streak}</div><div className="stat-label">{streak === 1 ? '🔥 Day Streak' : '🔥 Day Streak'}</div></div>
+          </div>
+          <button data-no-capture className="btn btn-ghost" style={{ width:'100%', justifyContent:'center', fontSize:11 }} onClick={downloadStatsCard} disabled={downloading}>
+            {downloading ? 'Saving...' : '🖼️ Download Stats Card'}
+          </button>
         </div>
       )}
 
@@ -235,6 +331,18 @@ export default function Profile() {
         )}
       </div>
 
+      {Boolean(profile?.onboardingSkippedAt && !profile?.profileCompletedAt) && (
+        <div className="card" style={{ marginBottom:14 }}>
+          <div className="card-label">🧩 Complete Onboarding</div>
+          <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', lineHeight:1.7, marginBottom:12 }}>
+            You skipped onboarding earlier. Complete it any time to set all profile details.
+          </p>
+          <button className="btn btn-purple" onClick={() => navigate('/onboarding?edit=1')}>
+            Complete Onboarding Now
+          </button>
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom:14 }}>
         <div className="card-label">🌓 Appearance</div>
         <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', lineHeight:1.7, marginBottom:12 }}>
@@ -243,6 +351,34 @@ export default function Profile() {
         <button className="btn btn-ghost" onClick={toggleTheme}>
           {theme === 'dark' ? '☀️ Switch to Light' : '🌙 Switch to Dark'}
         </button>
+      </div>
+
+      <div className="card" style={{ marginBottom:14 }}>
+        <div className="card-label">⏰ Daily Study Reminder</div>
+        <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', lineHeight:1.7, marginBottom:12 }}>
+          Set a daily study reminder. On Android, notification popup may appear once (or not at all if already granted).
+        </p>
+        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+          <input
+            type="time"
+            className="input"
+            style={{ width:120 }}
+            value={reminderTime}
+            onChange={e => setReminderTime(e.target.value)}
+          />
+          <button
+            className={reminderEnabled ? 'btn btn-primary' : 'btn btn-ghost'}
+            onClick={() => saveReminder(reminderTime, !reminderEnabled)}
+            disabled={!reminderTime}
+          >
+            {reminderEnabled ? '🔔 On' : '🔕 Off'}
+          </button>
+        </div>
+        {reminderEnabled && reminderTime && (
+          <div style={{ marginTop:8, fontFamily:'var(--mono)', fontSize:10, color:'var(--accent)', lineHeight:1.6 }}>
+            Reminder set for {reminderTime} daily. Keep browser open or install the app.
+          </div>
+        )}
       </div>
 
       {/* Sign out */}

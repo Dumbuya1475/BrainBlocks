@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getModules, addModule, updateModule, deleteModule } from '../firebase/db';
+import { getModules, addModule, updateModule, deleteModule, getProgress } from '../firebase/db';
 import { DEFAULT_MODULES } from '../data/curriculum';
 import { Notif, useNotif } from '../components/Notif';
 import { generateModuleRoadmap } from '../services/geminiRoadmap';
+import { getRoadmapStats } from '../utils/roadmapProgress';
 
 const COLORS  = ['#00e5ff','#7c4dff','#ff6d3a','#ffd740','#00e676','#e040fb','#ff5252','#69f0ae'];
 const ICONS   = ['💻','🗄️','📐','🌐','📝','📚','🧮','🔬','🎨','🧪','⚙️','📡','🔐','📊','🧠'];
+const MAX_WEEKS = 12;
 
 function formatDailyStudyTime(value) {
   return `${Number(value)} min/day`;
@@ -37,6 +39,7 @@ export default function MyModules() {
   const { user } = useAuth();
   const { notif, showNotif } = useNotif();
   const [modules, setModules]   = useState([]);
+  const [progress, setProgress] = useState({ tasks: {} });
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -46,7 +49,7 @@ export default function MyModules() {
   const [goal,     setGoal]     = useState('');
   const [duration, setDuration] = useState(30);
   const [dailyStudyTime, setDailyStudyTime] = useState(45);
-  const [durationWeeks, setDurationWeeks] = useState(12);
+  const [durationWeeks, setDurationWeeks] = useState('12');
   const [color,    setColor]    = useState(COLORS[0]);
   const [icon,     setIcon]     = useState(ICONS[0]);
   const [saving,   setSaving]   = useState(false);
@@ -59,8 +62,9 @@ export default function MyModules() {
     if (!user?.uid) return;
     setLoading(true);
     try {
-      const mods = await getModules(user.uid);
+      const [mods, prog] = await Promise.all([getModules(user.uid), getProgress(user.uid)]);
       setModules(mods);
+      setProgress(prog || { tasks: {} });
     } catch (e) {
       if (e?.code === 'permission-denied') showNotif('Firestore permission denied for modules.', 'error');
       else showNotif('Failed to load modules.', 'error');
@@ -75,7 +79,7 @@ export default function MyModules() {
     setGoal('');
     setDuration(30);
     setDailyStudyTime(45);
-    setDurationWeeks(12);
+    setDurationWeeks('12');
     setColor(COLORS[0]);
     setIcon(ICONS[0]);
     setGeneratedRoadmap(null);
@@ -85,6 +89,11 @@ export default function MyModules() {
     if (!name.trim()) return showNotif('Enter a module name first.', 'error');
     if (!goal.trim()) return showNotif('Enter a learning goal first.', 'error');
 
+    const safeDurationWeeks = Math.min(MAX_WEEKS, Math.max(1, Number(durationWeeks) || 1));
+    if (safeDurationWeeks !== Number(durationWeeks)) {
+      setDurationWeeks(safeDurationWeeks);
+    }
+
     setSaving(true);
     setGeneratingId('new');
     try {
@@ -93,10 +102,10 @@ export default function MyModules() {
         moduleCode: moduleCode.trim(),
         goal: goal.trim(),
         dailyStudyTime: formatDailyStudyTime(dailyStudyTime),
-        durationWeeks: Number(durationWeeks),
+        durationWeeks: safeDurationWeeks,
       });
       setGeneratedRoadmap(roadmap);
-      showNotif(roadmap?.generatedBy === 'fallback' ? 'Gemini quota hit — fallback roadmap generated.' : '✓ AI roadmap generated!');
+      showNotif(roadmap?.generatedBy === 'fallback' ? 'AI unavailable — fallback roadmap generated.' : '✓ AI roadmap generated!');
     } catch (e) {
       showNotif(e?.message || 'Failed to generate roadmap.', 'error');
     } finally {
@@ -108,6 +117,7 @@ export default function MyModules() {
   async function handleAdd(e) {
     e.preventDefault();
     if (!name.trim() || !user?.uid) return;
+    const safeDurationWeeks = Math.min(MAX_WEEKS, Math.max(1, Number(durationWeeks) || 1));
     setSaving(true);
     try {
       await addModule(user.uid, {
@@ -116,7 +126,7 @@ export default function MyModules() {
         goal: goal.trim(),
         duration: Number(duration),
         dailyStudyTime: Number(dailyStudyTime),
-        durationWeeks: Number(durationWeeks),
+        durationWeeks: safeDurationWeeks,
         color,
         icon,
         roadmap: generatedRoadmap,
@@ -170,8 +180,14 @@ export default function MyModules() {
     }
   }
 
+  const AI_GEN_LIMIT = 1;
+
   async function regenerateRoadmap(mod) {
     if (!user?.uid || !mod?.id) return;
+    if ((mod.roadmapGenCount || 0) >= AI_GEN_LIMIT) {
+      showNotif('AI generation limit reached for this module.', 'error');
+      return;
+    }
     setGeneratingId(mod.id);
     try {
       const nextGoal = mod.goal || `Build working skill in ${mod.name}`;
@@ -180,12 +196,15 @@ export default function MyModules() {
         moduleCode: mod.moduleCode || '',
         goal: nextGoal,
         dailyStudyTime: formatDailyStudyTime(mod.dailyStudyTime || mod.duration || 30),
-        durationWeeks: Number(mod.durationWeeks || 12),
+        durationWeeks: Math.min(MAX_WEEKS, Math.max(1, Number(mod.durationWeeks || 12))),
       });
-      await updateModule(user.uid, mod.id, { roadmap, goal: nextGoal });
-      setModules(current => current.map(item => item.id === mod.id ? { ...item, roadmap, goal: nextGoal } : item));
+      const newCount = (mod.roadmapGenCount || 0) + 1;
+      await updateModule(user.uid, mod.id, { roadmap, goal: nextGoal, roadmapGenCount: newCount });
+      setModules(current => current.map(item =>
+        item.id === mod.id ? { ...item, roadmap, goal: nextGoal, roadmapGenCount: newCount } : item
+      ));
       setExpandedId(mod.id);
-      showNotif(roadmap?.generatedBy === 'fallback' ? 'Gemini quota hit — fallback roadmap saved.' : '✓ AI roadmap updated!');
+      showNotif(roadmap?.generatedBy === 'fallback' ? 'AI unavailable — fallback roadmap saved.' : '✓ AI roadmap generated!');
     } catch (e) {
       showNotif(e?.message || 'Failed to generate roadmap.', 'error');
     } finally {
@@ -226,27 +245,40 @@ export default function MyModules() {
                 padding:'12px 14px', borderRadius:10,
                 border:'1px solid var(--border)', background:'var(--surface)',
               }}>
-                <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+                <div className="module-row">
                   <span style={{ fontSize:22 }}>{mod.icon || '📖'}</span>
                   <div style={{
                     width:4, height:36, borderRadius:2,
                     background: mod.color || 'var(--accent)', flexShrink:0
                   }} />
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:14, fontWeight:600 }}>{mod.name}</div>
-                    <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--muted)', lineHeight:1.8 }}>
+                  <div className="module-main">
+                    <div style={{ fontSize:14, fontWeight:600, wordBreak:'break-word' }}>{mod.name}</div>
+                    <div className="module-meta">
                       {mod.moduleCode ? `${mod.moduleCode} · ` : ''}
                       {mod.duration} min focus block
                       {mod.dailyStudyTime ? ` · ${mod.dailyStudyTime} min/day` : ''}
                       {mod.durationWeeks ? ` · ${mod.durationWeeks} weeks` : ''}
                     </div>
                     {mod.goal && (
-                      <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginTop:4 }}>
+                      <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginTop:4, wordBreak:'break-word' }}>
                         Goal: {mod.goal}
                       </div>
                     )}
+                    {mod.roadmap?.weeks?.length > 0 && (() => {
+                      const modStats = getRoadmapStats([mod], progress.tasks || {});
+                      return (
+                        <div style={{ marginTop:6 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', fontFamily:'var(--mono)', fontSize:9, color:'var(--muted)', marginBottom:3 }}>
+                            <span>Progress</span><span>{modStats.pct}%</span>
+                          </div>
+                          <div className="bar-track" style={{ height:4 }}>
+                            <div className="bar-fill" style={{ width:`${modStats.pct}%`, background: mod.color || 'var(--accent2)' }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                  <div style={{ display:'flex', gap:6, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                  <div className="module-actions">
                     <button className="btn btn-ghost btn-sm" type="button" onClick={() => setExpandedId(expandedId === mod.id ? null : mod.id)}>
                       {expandedId === mod.id ? 'Hide' : 'Plan'}
                     </button>
@@ -254,9 +286,15 @@ export default function MyModules() {
                       className="btn btn-ghost btn-sm"
                       type="button"
                       onClick={() => regenerateRoadmap(mod)}
-                      disabled={generatingId === mod.id}
+                      disabled={generatingId === mod.id || (mod.roadmapGenCount || 0) >= AI_GEN_LIMIT}
+                      title={(mod.roadmapGenCount || 0) >= AI_GEN_LIMIT ? 'AI roadmap already generated' : ''}
+                      style={(mod.roadmapGenCount || 0) >= AI_GEN_LIMIT ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
                     >
-                      {generatingId === mod.id ? 'AI...' : mod.roadmap ? 'Redo AI' : 'Add AI'}
+                      {generatingId === mod.id
+                        ? 'AI...'
+                        : (mod.roadmapGenCount || 0) >= AI_GEN_LIMIT
+                          ? '🔒 Done'
+                          : 'Add AI'}
                     </button>
                     <button className="btn btn-danger btn-sm" onClick={() => handleDelete(mod.id)}>✕</button>
                   </div>
@@ -303,7 +341,7 @@ export default function MyModules() {
                   style={{ minHeight:78 }}
                 />
 
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:10 }}>
+                <div className="module-form-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:10 }}>
                   <div>
                     <label style={{ display:'block', fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', marginBottom:6 }}>Focus block</label>
                     <input className="input" type="number" min={5} max={180} value={duration} onChange={e => setDuration(e.target.value)} />
@@ -314,7 +352,18 @@ export default function MyModules() {
                   </div>
                   <div>
                     <label style={{ display:'block', fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', marginBottom:6 }}>Weeks</label>
-                    <input className="input" type="number" min={1} max={24} value={durationWeeks} onChange={e => setDurationWeeks(e.target.value)} />
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      max={MAX_WEEKS}
+                      value={durationWeeks}
+                      onChange={e => setDurationWeeks(e.target.value)}
+                      onBlur={e => {
+                        const v = Math.min(MAX_WEEKS, Math.max(1, Number(e.target.value) || 1));
+                        setDurationWeeks(String(v));
+                      }}
+                    />
                   </div>
                 </div>
 

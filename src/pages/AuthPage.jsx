@@ -35,6 +35,12 @@ export default function AuthPage() {
     if (code === 'auth/unauthorized-domain') {
       return 'This domain is not authorized. Add localhost and your site domain in Firebase Authentication → Settings → Authorized domains.';
     }
+    if (code === 'auth/native-google-no-token') {
+      return 'Google sign-in started but no token was returned. Check Firebase Android setup and try again.';
+    }
+    if (code === 'auth/native-google-failed') {
+      return 'Native Google sign-in failed. Ensure android app is linked to Firebase (google-services.json + SHA keys) and Google provider is enabled.';
+    }
     if (code === 'auth/popup-closed-by-user') {
       return 'Google sign-in was canceled. Please try again.';
     }

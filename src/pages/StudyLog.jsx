@@ -135,7 +135,7 @@ export default function StudyLog() {
           </form>
         </div>
       ) : (
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}
+        <button data-tour="log-add" className="btn btn-primary" onClick={() => setShowForm(true)}
           style={{ width:'100%', justifyContent:'center', padding:12, marginBottom:14 }}>
           ➕ Log Today's Study
         </button>

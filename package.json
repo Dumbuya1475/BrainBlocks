@@ -8,14 +8,16 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "firebase deploy",
-    "deploy:rules": "firebase deploy --only firestore:rules",
-    "deploy:functions": "firebase deploy --only functions"
+    "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.1.0",
     "@capacitor/android": "^8.2.0",
     "@capacitor/cli": "^8.2.0",
     "@capacitor/core": "^8.2.0",
+    "@capacitor/local-notifications": "^8.0.2",
     "firebase": "^10.12.0",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.383.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -25,6 +27,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "sharp": "^0.34.5",
     "typescript": "^5.9.3",
     "vite": "^5.2.0"
   }

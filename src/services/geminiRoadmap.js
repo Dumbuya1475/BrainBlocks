@@ -1,7 +1,5 @@
-const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.0-flash';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL || 'https://us-central1-brainblocks-e3e01.cloudfunctions.net/generateRoadmap';
-const CLIENT_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+const GROQ_MODEL = import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant';
+const CLIENT_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 
 function buildPrompt({ moduleName, goal, dailyStudyTime, durationWeeks }) {
   return `You are an expert curriculum designer.
@@ -55,19 +53,6 @@ function extractJson(text) {
   const match = String(text || '').match(/\{[\s\S]*\}/);
   if (!match) throw new Error('AI did not return valid JSON.');
   return JSON.parse(match[0]);
-}
-
-function getRoadmapEndpoint() {
-  const trimmedBase = API_BASE_URL.trim();
-  if (trimmedBase) {
-    return `${trimmedBase.replace(/\/$/, '')}/api/generate-roadmap`;
-  }
-
-  if (import.meta.env.DEV) {
-    return FUNCTIONS_URL.trim();
-  }
-
-  return '/api/generate-roadmap';
 }
 
 function validateRoadmap(roadmap, requestedWeeks) {
@@ -240,95 +225,94 @@ function buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, du
 }
 
 function shouldUseFallback(error) {
+  const status = Number(error?.status || error?.code || 0);
   const message = String(error?.message || error || '').toLowerCase();
   return (
+    status === 429 ||
+    status === 401 ||
+    status === 403 ||
     message.includes('resource_exhausted') ||
     message.includes('quota') ||
     message.includes('429') ||
-    message.includes('roadmap proxy returned html') ||
+    message.includes('too many requests') ||
+    message.includes('rate limit') ||
+    message.includes('rate_limit_exceeded') ||
+    message.includes('unauthorized') ||
+    message.includes('invalid api key') ||
+    message.includes('invalid_api_key') ||
+    message.includes('missing vite_groq_api_key') ||
+    message.includes('did not return valid json') ||
+    message.includes('invalid roadmap format') ||
+    message.includes('roadmap is missing weeks') ||
+    message.includes('roadmap weeks count does not match requested duration') ||
     message.includes('failed to fetch') ||
     message.includes('load failed')
   );
 }
 
-async function generateViaGeminiClient({ moduleName, goal, dailyStudyTime, durationWeeks }) {
-  if (!CLIENT_API_KEY.trim()) {
-    throw new Error('Missing VITE_GEMINI_API_KEY. Add it to your .env file.');
+function createApiError(rawText, fallbackMessage, status = 0) {
+  let message = fallbackMessage;
+
+  try {
+    const parsed = JSON.parse(rawText);
+    message =
+      parsed?.error?.message ||
+      parsed?.message ||
+      parsed?.error ||
+      fallbackMessage;
+  } catch {
+    message = rawText || fallbackMessage;
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${CLIENT_API_KEY.trim()}`;
+  const error = new Error(String(message));
+  error.status = Number(status || 0);
+  return error;
+}
+
+async function generateViaGroqClient({ moduleName, goal, dailyStudyTime, durationWeeks }) {
+  if (!CLIENT_API_KEY.trim()) {
+    const error = new Error('Missing VITE_GROQ_API_KEY. Add it to your .env file.');
+    error.status = 401;
+    throw error;
+  }
+
+  const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${CLIENT_API_KEY.trim()}`,
     },
     body: JSON.stringify({
-      generationConfig: {
-        temperature: 0.4,
-        responseMimeType: 'application/json',
-      },
-      contents: [
+      model: GROQ_MODEL,
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: 'You generate strict JSON study roadmaps only.',
+        },
         {
           role: 'user',
-          parts: [{ text: buildPrompt({ moduleName, goal, dailyStudyTime, durationWeeks }) }],
-        },
+          content: buildPrompt({ moduleName, goal, dailyStudyTime, durationWeeks }),
+        }
       ],
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Gemini request failed.');
+    throw createApiError(errorText, 'Groq request failed.', response.status);
   }
 
   const data = await response.json();
-  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const content = data?.choices?.[0]?.message?.content || '';
   return validateRoadmap(extractJson(content), durationWeeks);
-}
-
-async function generateViaProxy({ moduleName, goal, dailyStudyTime, durationWeeks }) {
-  const endpoint = getRoadmapEndpoint();
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      moduleName,
-      goal,
-      dailyStudyTime,
-      durationWeeks,
-      model: GEMINI_MODEL,
-    }),
-  });
-
-  const contentType = response.headers.get('content-type') || '';
-  const rawText = await response.text();
-
-  if (!response.ok) {
-    try {
-      const parsed = JSON.parse(rawText);
-      throw new Error(parsed?.error || 'Roadmap proxy request failed.');
-    } catch {
-      throw new Error(rawText || 'Roadmap proxy request failed.');
-    }
-  }
-
-  if (rawText.trim().startsWith('<!DOCTYPE') || contentType.includes('text/html')) {
-    throw new Error('Roadmap proxy returned HTML instead of JSON.');
-  }
-
-  return validateRoadmap(JSON.parse(rawText), durationWeeks);
 }
 
 export async function generateModuleRoadmap({ moduleName, moduleCode = '', goal, dailyStudyTime, durationWeeks }) {
   try {
-    if (CLIENT_API_KEY.trim()) {
-      return await generateViaGeminiClient({ moduleName, goal, dailyStudyTime, durationWeeks });
-    }
-
-    return await generateViaProxy({ moduleName, goal, dailyStudyTime, durationWeeks });
+    return await generateViaGroqClient({ moduleName, goal, dailyStudyTime, durationWeeks });
   } catch (error) {
     if (shouldUseFallback(error)) {
       return buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, durationWeeks });

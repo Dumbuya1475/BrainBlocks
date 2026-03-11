@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { getProfile } from './firebase/db';
 import Layout from './components/Layout';
@@ -12,17 +12,22 @@ import MyModules from './pages/MyModules';
 import StudyLog from './pages/StudyLog';
 import Profile from './pages/Profile';
 import PublicProfile from './pages/PublicProfile';
+import { isNativePlatform } from './utils/nativeNotifications';
 
 function FullPageStatus({ text }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontFamily:'var(--mono)', color:'var(--accent)', fontSize:13 }}>
+    <div style={{ position:'relative', display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontFamily:'var(--mono)', color:'var(--accent)', fontSize:13 }}>
       {text}
+      <div style={{ position:'absolute', bottom:16, left:0, right:0, textAlign:'center', fontSize:10, letterSpacing:1.2, color:'var(--muted)', textTransform:'uppercase' }}>
+        Powered by Tech Inspire SL
+      </div>
     </div>
   );
 }
 
 function useOnboardingStatus() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   const [checking, setChecking] = useState(true);
   const [onboardingSeen, setOnboardingSeen] = useState(true);
 
@@ -52,7 +57,7 @@ function useOnboardingStatus() {
 
     checkProfile();
     return () => { active = false; };
-  }, [user, loading]);
+  }, [user, loading, location.pathname]);
 
   return { user, loading, checking, onboardingSeen };
 }
@@ -70,15 +75,22 @@ function RequireOnboarding({ children }) {
 }
 
 function OnboardingRoute() {
+  const location = useLocation();
   const { loading, checking, onboardingSeen } = useOnboardingStatus();
+  const allowReopen = new URLSearchParams(location.search).get('edit') === '1';
+
   if (loading || checking) return <FullPageStatus text="Loading..." />;
-  return onboardingSeen ? <Navigate to="/" replace /> : <Onboarding />;
+  if (onboardingSeen && !allowReopen) return <Navigate to="/" replace />;
+
+  return <Onboarding />;
 }
 
 export default function App() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { loading: onboardingLoading, checking: onboardingChecking, onboardingSeen } = useOnboardingStatus();
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [timerForce, setTimerForce] = useState(0); // trigger re-renders
 
   useEffect(() => {
     function handleBeforeInstallPrompt(e) {
@@ -89,6 +101,113 @@ export default function App() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
+
+  // Persistent timer across all pages — ticks every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const timerState = localStorage.getItem('bb-timer');
+      if (!timerState) return;
+      const state = JSON.parse(timerState);
+      if (!state.running) return;
+
+      state.timerSec -= 1;
+      if (state.timerSec <= 0) {
+        state.timerSec = 0;
+        state.running = false;
+      }
+      localStorage.setItem('bb-timer', JSON.stringify(state));
+      setTimerForce(c => c + 1); // trigger re-render to update Layout
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Focus mode — warn before leaving during active session
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      const timerState = localStorage.getItem('bb-timer');
+      if (!timerState) return;
+      const state = JSON.parse(timerState);
+      const focusMode = localStorage.getItem('bb-focus-mode') === '1';
+      
+      if (focusMode && state.running && state.timerSec > 0) {
+        e.preventDefault();
+        e.returnValue = 'Your focus session is still running! Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Periodic focus notifications every 5 min during active timer
+  useEffect(() => {
+    if (isNativePlatform()) return;
+    const notifInterval = setInterval(() => {
+      const timerState = localStorage.getItem('bb-timer');
+      if (!timerState) return;
+      const state = JSON.parse(timerState);
+      const focusMode = localStorage.getItem('bb-focus-mode') === '1';
+      
+      if (focusMode && state.running && state.timerSec > 0 && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const minRemaining = Math.ceil(state.timerSec / 60);
+        const notif = new Notification('🎯 Stay Focused!', {
+          body: `${minRemaining} min left. Keep going!`,
+          tag: 'focus-reminder',
+          requireInteraction: false,
+        });
+        notif.onclick = () => {
+          window.focus();
+          notif.close();
+        };
+      }
+    }, 300000); // Every 5 minutes
+    return () => clearInterval(notifInterval);
+  }, []);
+
+  // Detect tab/window close during active session
+  useEffect(() => {
+    function handleVisibilityChange() {
+      const timerState = localStorage.getItem('bb-timer');
+      const focusMode = localStorage.getItem('bb-focus-mode') === '1';
+      if (!timerState) return;
+      const state = JSON.parse(timerState);
+      
+      if (document.hidden && focusMode && state.running && state.activeIdx !== null) {
+        // User switched away — save as abandoned session
+        localStorage.setItem('bb-session-abandoned', '1');
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  // Daily study reminder — fires browser notification at user-set time
+  useEffect(() => {
+    if (isNativePlatform()) return;
+    const tick = setInterval(() => {
+      const time = localStorage.getItem('bb-reminder');
+      const on   = localStorage.getItem('bb-reminder-on') === '1';
+      if (!on || !time) return;
+      const [rh, rm] = time.split(':').map(Number);
+      const now = new Date();
+      if (now.getHours() === rh && now.getMinutes() === rm && now.getSeconds() < 30) {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          const notif = new Notification('BrainBlocks Study Reminder 📚', {
+            body: "Time to study! Open BrainBlocks and start your focus session.",
+            icon: '/icon.svg',
+          });
+          notif.onclick = () => {
+            window.focus();
+            navigate('/', { replace: true });
+            notif.close();
+          };
+        }
+      }
+    }, 30000); // check every 30s
+    return () => clearInterval(tick);
+  }, [navigate]);
 
   async function handleInstall() {
     if (!installPrompt) return;

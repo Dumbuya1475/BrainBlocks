@@ -1,8 +1,8 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 
-const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+const GROQ_API_KEY = defineSecret('GROQ_API_KEY');
+const DEFAULT_MODEL = 'llama-3.1-8b-instant';
 
 function buildPrompt({ moduleName, goal, dailyStudyTime, durationWeeks }) {
   return `You are an expert curriculum designer.
@@ -54,7 +54,7 @@ Duration Weeks: ${durationWeeks}`;
 
 function parseJsonBlock(text) {
   const match = String(text || '').match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Gemini returned non-JSON output.');
+  if (!match) throw new Error('Groq returned non-JSON output.');
   return JSON.parse(match[0]);
 }
 
@@ -76,7 +76,7 @@ function validateRoadmap(roadmap, requestedWeeks) {
 }
 
 exports.generateRoadmap = onRequest({
-  secrets: [GEMINI_API_KEY],
+  secrets: [GROQ_API_KEY],
   cors: true,
 }, async (req, res) => {
   if (req.method !== 'POST') {
@@ -93,7 +93,7 @@ exports.generateRoadmap = onRequest({
     }
 
     const selectedModel = model || DEFAULT_MODEL;
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${GEMINI_API_KEY.value()}`;
+    const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
     const prompt = buildPrompt({
       moduleName,
@@ -102,26 +102,31 @@ exports.generateRoadmap = onRequest({
       durationWeeks: Number(durationWeeks),
     });
 
-    const geminiResponse = await fetch(endpoint, {
+    const groqResponse = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${GROQ_API_KEY.value()}`,
+      },
       body: JSON.stringify({
-        generationConfig: {
-          temperature: 0.4,
-          responseMimeType: 'application/json',
-        },
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        model: selectedModel,
+        temperature: 0.4,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: 'You generate strict JSON study roadmaps only.' },
+          { role: 'user', content: prompt },
+        ],
       }),
     });
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      res.status(502).json({ error: errorText || 'Gemini request failed' });
+    if (!groqResponse.ok) {
+      const errorText = await groqResponse.text();
+      res.status(groqResponse.status || 502).json({ error: errorText || 'Groq request failed' });
       return;
     }
 
-    const payload = await geminiResponse.json();
-    const content = payload?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const payload = await groqResponse.json();
+    const content = payload?.choices?.[0]?.message?.content || '';
     const roadmap = validateRoadmap(parseJsonBlock(content), Number(durationWeeks));
     res.status(200).json(roadmap);
   } catch (error) {

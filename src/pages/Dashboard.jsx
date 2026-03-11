@@ -1,8 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getModules, getProgress, saveProgress } from '../firebase/db';
+import { getModules, getProgress, saveProgress, getLogs } from '../firebase/db';
 import { DEFAULT_MODULES } from '../data/curriculum';
 import { Notif, useNotif } from '../components/Notif';
+
+function computeStreak(logs) {
+  if (!logs.length) return 0;
+  const days = new Set(
+    logs.map(l => {
+      try { const d = new Date(l.dateStr || l.createdAt); return isNaN(d) ? null : d.toDateString(); }
+      catch { return null; }
+    }).filter(Boolean)
+  );
+  let streak = 0;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  while (days.has(d.toDateString())) { streak++; d.setDate(d.getDate() - 1); }
+  return streak;
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -10,26 +25,56 @@ export default function Dashboard() {
 
   const [modules,  setModules]  = useState([]);
   const [progress, setProgress] = useState({ sessions:{}, tasks:{}, lastReset:'' });
+  const [logs,     setLogs]     = useState([]);
   const [loading,  setLoading]  = useState(true);
 
-  // Timer state
-  const [activeIdx,    setActiveIdx]    = useState(null);
-  const [timerSec,     setTimerSec]     = useState(0);
-  const [timerTotal,   setTimerTotal]   = useState(0);
-  const [running,      setRunning]      = useState(false);
-  const intervalRef = useRef(null);
+  // Timer state synced from localStorage
+  const [timerState, setTimerState] = useState({ activeIdx: null, timerSec: 0, timerTotal: 0, running: false });
+  const [focusMode, setFocusMode] = useState(localStorage.getItem('bb-focus-mode') === '1');
 
   // Clock
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
+  // Read timer state from localStorage on mount and sync every 500ms
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      const saved = localStorage.getItem('bb-timer');
+      if (saved) {
+        try {
+          setTimerState(JSON.parse(saved));
+        } catch (e) {
+          console.error('Failed to parse timer state', e);
+        }
+      }
+    }, 500); // Poll frequently to keep in sync
+    return () => clearInterval(syncInterval);
+  }, []);
+
+  // Notify when timer finished
+  useEffect(() => {
+    if (!timerState.running && timerState.timerSec === 0 && timerState.activeIdx !== null) {
+      showNotif("⏰ Time's up! Great work!");
+    }
+  }, [timerState.timerSec, timerState.running, timerState.activeIdx, showNotif]);
+
   useEffect(() => { loadData(); }, [user]);
 
+  // Check for abandoned session and handle streak breaking
+  useEffect(() => {
+    if (!user?.uid) return;
+    const abandoned = localStorage.getItem('bb-session-abandoned');
+    if (abandoned === '1') {
+      // Session was abandoned - optionally log it and show warning
+      showNotif('⚠️ Session abandoned — streak may be affected', 'warning');
+      localStorage.removeItem('bb-session-abandoned');
+    }
+  }, [user, showNotif]);
   async function loadData() {
     if (!user?.uid) return;
     setLoading(true);
     try {
-      const [mods, prog] = await Promise.all([getModules(user.uid), getProgress(user.uid)]);
+      const [mods, prog, userLogs] = await Promise.all([getModules(user.uid), getProgress(user.uid), getLogs(user.uid)]);
       const today = new Date().toDateString();
       let p = prog;
       if (p.lastReset !== today) {
@@ -38,6 +83,7 @@ export default function Dashboard() {
       }
       setModules(mods.length > 0 ? mods : DEFAULT_MODULES);
       setProgress(p);
+      setLogs(userLogs || []);
     } catch (e) {
       if (e?.code === 'permission-denied') {
         showNotif('Firestore permission denied. Update rules for users/{uid} and subcollections.', 'error');
@@ -50,66 +96,56 @@ export default function Dashboard() {
   }
 
   function selectModule(idx) {
-    if (running) return;
+    if (timerState.running) return;
     const m = modules[idx];
-    setActiveIdx(idx);
     const secs = (m.duration || 30) * 60;
-    setTimerSec(secs);
-    setTimerTotal(secs);
+    const newState = { activeIdx: idx, timerSec: secs, timerTotal: secs, running: false };
+    localStorage.setItem('bb-timer', JSON.stringify(newState));
+    setTimerState(newState);
   }
 
   function toggleTimer() {
-    if (activeIdx === null) { showNotif('Pick a study block first!', 'error'); return; }
-    if (running) {
-      clearInterval(intervalRef.current);
-      setRunning(false);
-    } else {
-      intervalRef.current = setInterval(() => {
-        setTimerSec(s => {
-          if (s <= 1) {
-            clearInterval(intervalRef.current);
-            setRunning(false);
-            showNotif("⏰ Time's up! Great work!");
-            return 0;
-          }
-          return s - 1;
-        });
-      }, 1000);
-      setRunning(true);
-    }
+    if (timerState.activeIdx === null) { showNotif('Pick a study block first!', 'error'); return; }
+    const newState = { ...timerState, running: !timerState.running };
+    localStorage.setItem('bb-timer', JSON.stringify(newState));
+    setTimerState(newState);
   }
 
   function resetTimer() {
-    clearInterval(intervalRef.current);
-    setRunning(false);
-    if (activeIdx !== null) {
-      const secs = (modules[activeIdx]?.duration || 30) * 60;
-      setTimerSec(secs); setTimerTotal(secs);
+    if (timerState.activeIdx !== null) {
+      const secs = (modules[timerState.activeIdx]?.duration || 30) * 60;
+      const newState = { ...timerState, timerSec: secs, running: false };
+      localStorage.setItem('bb-timer', JSON.stringify(newState));
+      setTimerState(newState);
     }
   }
 
   async function markDone() {
-    if (activeIdx === null) return;
-    const key = modules[activeIdx]?.id || modules[activeIdx]?.name;
+    if (timerState.activeIdx === null) return;
+    const key = modules[timerState.activeIdx]?.id || modules[timerState.activeIdx]?.name;
     const updated = { ...progress, sessions: { ...progress.sessions, [key]: true } };
     setProgress(updated);
     await saveProgress(user.uid, updated);
-    clearInterval(intervalRef.current);
-    setRunning(false);
-    setActiveIdx(null);
-    setTimerSec(0); setTimerTotal(0);
+    const newState = { activeIdx: null, timerSec: 0, timerTotal: 0, running: false };
+    localStorage.setItem('bb-timer', JSON.stringify(newState));
+    setTimerState(newState);
     showNotif('✓ Session marked complete!');
   }
 
-  useEffect(() => () => clearInterval(intervalRef.current), []);
-
-  const m = Math.floor(timerSec / 60).toString().padStart(2,'0');
-  const s = (timerSec % 60).toString().padStart(2,'0');
-  const pct = timerTotal > 0 ? ((timerTotal - timerSec) / timerTotal) * 100 : 0;
+  function toggleFocusMode() {
+    const newMode = !focusMode;
+    setFocusMode(newMode);
+    localStorage.setItem('bb-focus-mode', newMode ? '1' : '0');
+    showNotif(newMode ? '🎯 Focus Mode ON — Lock-in activated!' : '✓ Focus Mode OFF');
+  }
+  const m = Math.floor(timerState.timerSec / 60).toString().padStart(2,'0');
+  const s = (timerState.timerSec % 60).toString().padStart(2,'0');
+  const pct = timerState.timerTotal > 0 ? ((timerState.timerTotal - timerState.timerSec) / timerState.timerTotal) * 100 : 0;
   const doneCount = Object.values(progress.sessions || {}).filter(Boolean).length;
   const total = modules.length;
-  const activeModule = activeIdx !== null ? modules[activeIdx] : null;
+  const activeModule = timerState.activeIdx !== null ? modules[timerState.activeIdx] : null;
   const accentColor = activeModule?.color || 'var(--accent)';
+  const streak = computeStreak(logs);
 
   return (
     <div style={{ padding:'20px 16px', maxWidth:520, margin:'0 auto' }}>
@@ -126,11 +162,25 @@ export default function Dashboard() {
           </h1>
         </div>
         <div style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', textAlign:'right', lineHeight:1.8 }}>
+          {streak > 0 && (
+            <div style={{ marginBottom:4 }}>
+              <span style={{ fontFamily:'var(--mono)', fontSize:11, fontWeight:700, color:'var(--accent3)' }}>
+                🔥 {streak} day streak
+              </span>
+            </div>
+          )}
           <strong style={{ color:'var(--accent)', display:'block', fontSize:15 }}>
             {now.toLocaleTimeString()}
           </strong>
           <span>{now.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</span>
           <span style={{ display:'block' }}>{now.toLocaleDateString('en-GB', { weekday:'long' })}</span>
+                 <button
+                   className="btn btn-ghost"
+                   onClick={toggleFocusMode}
+                   style={{ marginTop: 8, padding: '4px 8px', fontSize: 10, backgroundColor: focusMode ? 'rgba(124,77,255,0.2)' : 'transparent' }}
+                 >
+                   {focusMode ? '🔒 Focus ON' : '🎯 Focus OFF'}
+                 </button>
         </div>
       </div>
 
@@ -153,9 +203,9 @@ export default function Dashboard() {
               fontFamily:'var(--mono)', fontSize:'clamp(52px,15vw,88px)', fontWeight:700,
               color: accentColor, textAlign:'center', letterSpacing:4, lineHeight:1,
               margin:'8px 0',
-              textShadow: running ? `0 0 40px ${accentColor}88` : 'none',
+              textShadow: timerState.running ? `0 0 40px ${accentColor}88` : 'none',
               transition:'color 0.3s, text-shadow 0.3s',
-              animation: running ? 'glow 2s infinite' : 'none',
+              animation: timerState.running ? 'glow 2s infinite' : 'none',
             }}>
               {m}:{s}
             </div>
@@ -167,7 +217,7 @@ export default function Dashboard() {
 
             <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap' }}>
               <button data-tour="dashboard-start" className="btn btn-primary" onClick={toggleTimer} style={{ minWidth:90, justifyContent:'center' }}>
-                {running ? 'PAUSE' : activeModule ? 'START' : 'START'}
+                {timerState.running ? 'PAUSE' : activeModule ? 'START' : 'START'}
               </button>
               <button className="btn btn-ghost" onClick={resetTimer}>RESET</button>
               <button className="btn btn-danger" onClick={markDone}>DONE ✓</button>
@@ -181,7 +231,7 @@ export default function Dashboard() {
               {modules.map((mod, i) => {
                 const key = mod.id || mod.name;
                 const isDone = progress.sessions?.[key];
-                const isActive = activeIdx === i;
+                const isActive = timerState.activeIdx === i;
                 return (
                   <button key={i} data-tour={i === 0 ? 'dashboard-module' : undefined} onClick={() => selectModule(i)}
                     style={{
@@ -191,7 +241,7 @@ export default function Dashboard() {
                       background: isActive ? `${mod.color}14` : isDone ? 'rgba(0,230,118,0.04)' : 'transparent',
                       opacity: isDone && !isActive ? 0.5 : 1,
                       width:'100%', textAlign:'left',
-                      cursor: running ? 'not-allowed' : 'pointer',
+                      cursor: timerState.running ? 'not-allowed' : 'pointer',
                       transition:'all 0.15s',
                     }}>
                     <span style={{ fontSize:18 }}>{mod.icon || '📖'}</span>

@@ -1,12 +1,10 @@
 {
-  "functions": {
-    "source": "functions"
-  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
+    "site": "brainblocks",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -14,10 +12,6 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-      {
-        "source": "/api/generate-roadmap",
-        "function": "generateRoadmap"
-      },
       {
         "source": "**",
         "destination": "/index.html"
