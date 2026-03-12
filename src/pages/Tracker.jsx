@@ -225,45 +225,48 @@ export default function Tracker() {
                       {currentWeek.summary}
                     </div>
                   </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                    {currentWeek.tasks.map((task, taskIndex) => {
-                      const checked = progress.tasks?.[getTaskProgressKey(activeModule.id || activeModule.name, safeActiveWeek, taskIndex)];
-                      return (
-                        <button data-tour={taskIndex === 0 ? 'tracker-task' : undefined} key={taskIndex} onClick={() => toggleTask(activeModule.id || activeModule.name, safeActiveWeek, taskIndex)}
-                          style={{
-                            display:'flex', alignItems:'flex-start', gap:10,
-                            padding:'10px 12px', borderRadius:8,
-                            border:`1px solid ${checked ? 'rgba(0,230,118,0.3)' : 'var(--border)'}`,
-                            background: checked ? 'rgba(0,230,118,0.05)' : 'var(--surface2)',
-                            width:'100%', textAlign:'left', cursor:'pointer', transition:'all 0.15s',
-                          }}>
-                          <div style={{
-                            width:16, height:16, borderRadius:4, flexShrink:0, marginTop:1,
-                            border:`1.5px solid ${checked ? 'var(--green)' : 'var(--border)'}`,
-                            background: checked ? 'rgba(0,230,118,0.2)' : 'transparent',
-                            display:'flex', alignItems:'center', justifyContent:'center',
-                            fontSize:10, color:'var(--green)',
-                          }}>
-                            {checked ? '✓' : ''}
-                          </div>
-                          <span style={{
-                            fontSize:13, lineHeight:1.5,
-                            textDecoration: checked ? 'line-through' : 'none',
-                            color: checked ? 'var(--muted)' : 'var(--text)',
-                          }}>
-                            {task}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
 
                   <details style={{ marginTop:12, border:'1px solid var(--border)', borderRadius:8, background:'var(--surface2)', padding:'10px 12px' }}>
                     <summary style={{ cursor:'pointer', listStyle:'none', fontFamily:'var(--mono)', fontSize:11, color:'var(--accent2)' }}>
-                      Expanded instruction
+                      Tap to expand
                     </summary>
 
-                    {/* Guidance-only section: no task checklist here */}
+                    <div style={{ marginTop:10 }}>
+                      <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginBottom:6 }}>Tasks</div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                        {currentWeek.tasks.map((task, taskIndex) => {
+                          const checked = progress.tasks?.[getTaskProgressKey(activeModule.id || activeModule.name, safeActiveWeek, taskIndex)];
+                          return (
+                            <button data-tour={taskIndex === 0 ? 'tracker-task' : undefined} key={taskIndex} onClick={() => toggleTask(activeModule.id || activeModule.name, safeActiveWeek, taskIndex)}
+                              style={{
+                                display:'flex', alignItems:'flex-start', gap:10,
+                                padding:'10px 12px', borderRadius:8,
+                                border:`1px solid ${checked ? 'rgba(0,230,118,0.3)' : 'var(--border)'}`,
+                                background: checked ? 'rgba(0,230,118,0.05)' : 'var(--surface)',
+                                width:'100%', textAlign:'left', cursor:'pointer', transition:'all 0.15s',
+                              }}>
+                              <div style={{
+                                width:16, height:16, borderRadius:4, flexShrink:0, marginTop:1,
+                                border:`1.5px solid ${checked ? 'var(--green)' : 'var(--border)'}`,
+                                background: checked ? 'rgba(0,230,118,0.2)' : 'transparent',
+                                display:'flex', alignItems:'center', justifyContent:'center',
+                                fontSize:10, color:'var(--green)',
+                              }}>
+                                {checked ? '✓' : ''}
+                              </div>
+                              <span style={{
+                                fontSize:13, lineHeight:1.5,
+                                textDecoration: checked ? 'line-through' : 'none',
+                                color: checked ? 'var(--muted)' : 'var(--text)',
+                              }}>
+                                {task}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     <div style={{ marginTop:10, padding:'10px 12px', borderRadius:8, background:'rgba(124,77,255,0.08)' }}>
                       <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginBottom:4 }}>Instruction / Note</div>
                       <div style={{ fontSize:12, lineHeight:1.6 }}>{currentWeek.note}</div>
