@@ -259,5 +259,5 @@ Install these for the best development experience:
 - **GitLens** — Git history in the editor
 - **Tailwind CSS IntelliSense** — if you add Tailwind later
 
-<!-- VITE_GROQ_API_KEY=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
-VITE_GROQ_MODEL=llama-3.1-8b-instant -->
+_l6inVE1tRNjljEwmEpWHWGdyb3FYo9OrryBiEqR8xVnPxiTafzd6
+-3.1-8b-instant -->
