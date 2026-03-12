@@ -258,6 +258,3 @@ Install these for the best development experience:
 - **ES7+ React Snippets** — React shorthand (type `rfce` for a component)
 - **GitLens** — Git history in the editor
 - **Tailwind CSS IntelliSense** — if you add Tailwind later
-
-_l6inVE1tRNjljEwmEpWHWGdyb3FYo9OrryBiEqR8xVnPxiTafzd6
--3.1-8b-instant -->
