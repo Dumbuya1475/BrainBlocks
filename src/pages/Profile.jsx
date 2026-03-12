@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { getProfile, saveProfile, getModules, getProgress, getLogs, getPublicProfile, updatePublicProfile } from '../firebase/db';
+import { getProfile, saveProfile, getProgress, getLogs, getPublicProfile, updatePublicProfile, subscribeModules } from '../firebase/db';
 import { Notif, useNotif } from '../components/Notif';
 import { APP_CONFIG, ACCESS_MODE_LABELS } from '../config/appConfig';
 import { getRoadmapStats } from '../utils/roadmapProgress';
@@ -51,7 +51,75 @@ export default function Profile() {
 
   const shareUrl = user?.uid ? `${window.location.origin}/u/${user.uid}` : '';
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => {
+    if (!user?.uid) {
+      setModules([]);
+      setProgress({ tasks:{} });
+      setLogs([]);
+      setProfile(null);
+      setShareOn(false);
+      setLoading(false);
+      return undefined;
+    }
+
+    let mounted = true;
+    let modulesReady = false;
+    let extrasReady = false;
+
+    const finishLoading = () => {
+      if (mounted && modulesReady && extrasReady) setLoading(false);
+    };
+
+    setLoading(true);
+
+    const unsubscribe = subscribeModules(
+      user.uid,
+      mods => {
+        if (!mounted) return;
+        setModules(mods);
+        modulesReady = true;
+        finishLoading();
+      },
+      e => {
+        if (!mounted) return;
+        if (e?.code === 'permission-denied') showNotif('Firestore permission denied for profile stats.', 'error');
+        else showNotif('Failed to sync profile modules.', 'error');
+        modulesReady = true;
+        finishLoading();
+      }
+    );
+
+    (async () => {
+      try {
+        const [p, l, profileDoc, publicDoc] = await Promise.all([
+          getProgress(user.uid),
+          getLogs(user.uid),
+          getProfile(user.uid),
+          getPublicProfile(user.uid),
+        ]);
+        if (!mounted) return;
+        setProgress(p || { tasks:{} });
+        setLogs(l || []);
+        setProfile(profileDoc || null);
+        setUniversity(profileDoc?.university || '');
+        setProgram(profileDoc?.program || '');
+        setClassGroup(profileDoc?.classGroup || '');
+        setShareOn(Boolean(publicDoc?.shareEnabled));
+      } catch (e) {
+        if (!mounted) return;
+        if (e?.code === 'permission-denied') showNotif('Firestore permission denied for profile stats.', 'error');
+        else showNotif('Failed to load profile stats.', 'error');
+      } finally {
+        extrasReady = true;
+        finishLoading();
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [user?.uid, showNotif]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -60,33 +128,6 @@ export default function Profile() {
 
   function toggleTheme() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-  }
-
-  async function load() {
-    if (!user?.uid) return;
-    setLoading(true);
-    try {
-      const [mods, p, l, profileDoc, publicDoc] = await Promise.all([
-        getModules(user.uid),
-        getProgress(user.uid),
-        getLogs(user.uid),
-        getProfile(user.uid),
-        getPublicProfile(user.uid),
-      ]);
-      setModules(mods);
-      setProgress(p);
-      setLogs(l);
-      setProfile(profileDoc || null);
-      setUniversity(profileDoc?.university || '');
-      setProgram(profileDoc?.program || '');
-      setClassGroup(profileDoc?.classGroup || '');
-      setShareOn(Boolean(publicDoc?.shareEnabled));
-    } catch (e) {
-      if (e?.code === 'permission-denied') showNotif('Firestore permission denied for profile stats.', 'error');
-      else showNotif('Failed to load profile stats.', 'error');
-    } finally {
-      setLoading(false);
-    }
   }
 
   async function toggleShare() {

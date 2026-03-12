@@ -1,8 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getModules, getProgress, saveProgress } from '../firebase/db';
+import { getProgress, saveProgress, subscribeModules } from '../firebase/db';
 import { Notif, useNotif } from '../components/Notif';
 import { getTrackableModules, getTaskProgressKey, getModuleWeekCompletion, getRoadmapStats } from '../utils/roadmapProgress';
+
+function normalizeWeek(week, index) {
+  if (!week) return null;
+
+  return {
+    ...week,
+    week: typeof week.week === 'number' ? week.week : index,
+    title: week.title || `Week ${index}`,
+    summary: week.summary || `Focus on the main goal for Week ${index}.`,
+    note: week.note || week.notes || 'Take the tasks one step at a time and review the difficult parts before moving on.',
+    checkpoint: week.checkpoint || 'Finish the tasks for this week and make sure you can explain the main ideas clearly.',
+    tasks: Array.isArray(week.tasks) ? week.tasks : [],
+  };
+}
 
 export default function Tracker() {
   const { user } = useAuth();
@@ -13,32 +27,72 @@ export default function Tracker() {
   const [activeWeek, setActiveWeek] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { load(); }, [user]);
-
-  async function load() {
-    if (!user?.uid) return;
-    setLoading(true);
-    try {
-      const [mods, p] = await Promise.all([getModules(user.uid), getProgress(user.uid)]);
-      const trackable = getTrackableModules(mods);
-      setModules(mods);
-      setProgress(p);
-      setActiveModuleId(current => current || trackable[0]?.id || '');
+  useEffect(() => {
+    if (!user?.uid) {
+      setModules([]);
+      setProgress({ tasks:{} });
+      setActiveModuleId('');
       setActiveWeek(0);
-    } catch (e) {
-      if (e?.code === 'permission-denied') showNotif('Firestore permission denied for tracker data.', 'error');
-      else showNotif('Failed to load tracker data.', 'error');
-    } finally {
       setLoading(false);
+      return undefined;
     }
-  }
+
+    let mounted = true;
+    let modulesReady = false;
+    let progressReady = false;
+
+    const finishLoading = () => {
+      if (mounted && modulesReady && progressReady) setLoading(false);
+    };
+
+    setLoading(true);
+
+    const unsubscribe = subscribeModules(
+      user.uid,
+      mods => {
+        if (!mounted) return;
+        const trackable = getTrackableModules(mods);
+        setModules(mods);
+        setActiveModuleId(current => current || trackable[0]?.id || '');
+        modulesReady = true;
+        finishLoading();
+      },
+      e => {
+        if (!mounted) return;
+        if (e?.code === 'permission-denied') showNotif('Firestore permission denied for tracker data.', 'error');
+        else showNotif('Failed to sync tracker data.', 'error');
+        modulesReady = true;
+        finishLoading();
+      }
+    );
+
+    getProgress(user.uid)
+      .then(p => {
+        if (!mounted) return;
+        setProgress(p || { tasks:{} });
+      })
+      .catch(e => {
+        if (!mounted) return;
+        if (e?.code === 'permission-denied') showNotif('Firestore permission denied for tracker data.', 'error');
+        else showNotif('Failed to load tracker data.', 'error');
+      })
+      .finally(() => {
+        progressReady = true;
+        finishLoading();
+      });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [user?.uid, showNotif]);
 
   const trackableModules = useMemo(() => getTrackableModules(modules), [modules]);
   const stats = useMemo(() => getRoadmapStats(trackableModules, progress.tasks || {}), [trackableModules, progress.tasks]);
   const activeModule = trackableModules.find(mod => mod.id === activeModuleId) || trackableModules[0] || null;
   const activeRoadmapWeeks = activeModule?.roadmap?.weeks || [];
   const safeActiveWeek = Math.min(activeWeek, Math.max(activeRoadmapWeeks.length - 1, 0));
-  const currentWeek = activeRoadmapWeeks[safeActiveWeek] || null;
+  const currentWeek = normalizeWeek(activeRoadmapWeeks[safeActiveWeek], safeActiveWeek);
 
   useEffect(() => {
     if (!activeModule && activeModuleId) setActiveModuleId('');
@@ -167,6 +221,9 @@ export default function Tracker() {
                     <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginTop:2 }}>
                       → {activeModule.name}
                     </div>
+                    <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--muted)', marginTop:6, lineHeight:1.7 }}>
+                      {currentWeek.summary}
+                    </div>
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                     {currentWeek.tasks.map((task, taskIndex) => {
@@ -200,6 +257,22 @@ export default function Tracker() {
                       );
                     })}
                   </div>
+
+                  <details style={{ marginTop:12, border:'1px solid var(--border)', borderRadius:8, background:'var(--surface2)', padding:'10px 12px' }}>
+                    <summary style={{ cursor:'pointer', listStyle:'none', fontFamily:'var(--mono)', fontSize:11, color:'var(--accent2)' }}>
+                      Expand instruction / note
+                    </summary>
+                    <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:10 }}>
+                      <div style={{ padding:'10px 12px', borderRadius:8, background:'rgba(124,77,255,0.08)' }}>
+                        <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginBottom:4 }}>Instruction / Note</div>
+                        <div style={{ fontSize:12, lineHeight:1.6 }}>{currentWeek.note}</div>
+                      </div>
+                      <div style={{ padding:'10px 12px', borderRadius:8, background:'rgba(0,229,255,0.08)' }}>
+                        <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginBottom:4 }}>Checkpoint</div>
+                        <div style={{ fontSize:12, lineHeight:1.6 }}>{currentWeek.checkpoint}</div>
+                      </div>
+                    </div>
+                  </details>
                 </div>
               )}
             </>

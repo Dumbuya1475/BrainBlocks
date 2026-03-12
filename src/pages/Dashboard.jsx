@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getModules, getProgress, saveProgress, getLogs } from '../firebase/db';
+import { getProgress, saveProgress, getLogs, subscribeModules } from '../firebase/db';
 import { DEFAULT_MODULES } from '../data/curriculum';
 import { Notif, useNotif } from '../components/Notif';
 
@@ -58,7 +58,75 @@ export default function Dashboard() {
     }
   }, [timerState.timerSec, timerState.running, timerState.activeIdx, showNotif]);
 
-  useEffect(() => { loadData(); }, [user]);
+  useEffect(() => {
+    if (!user?.uid) {
+      setModules([]);
+      setProgress({ sessions:{}, tasks:{}, lastReset:'' });
+      setLogs([]);
+      setLoading(false);
+      return undefined;
+    }
+
+    let mounted = true;
+    let modulesReady = false;
+    let extrasReady = false;
+
+    const finishLoading = () => {
+      if (mounted && modulesReady && extrasReady) setLoading(false);
+    };
+
+    setLoading(true);
+
+    const unsubscribe = subscribeModules(
+      user.uid,
+      mods => {
+        if (!mounted) return;
+        setModules(mods.length > 0 ? mods : DEFAULT_MODULES);
+        modulesReady = true;
+        finishLoading();
+      },
+      e => {
+        if (!mounted) return;
+        if (e?.code === 'permission-denied') {
+          showNotif('Firestore permission denied. Update rules for users/{uid} and subcollections.', 'error');
+        } else {
+          showNotif('Failed to sync dashboard modules.', 'error');
+        }
+        modulesReady = true;
+        finishLoading();
+      }
+    );
+
+    (async () => {
+      try {
+        const [prog, userLogs] = await Promise.all([getProgress(user.uid), getLogs(user.uid)]);
+        const today = new Date().toDateString();
+        let p = prog;
+        if (p.lastReset !== today) {
+          p = { ...p, sessions: {}, lastReset: today };
+          await saveProgress(user.uid, p);
+        }
+        if (!mounted) return;
+        setProgress(p);
+        setLogs(userLogs || []);
+      } catch (e) {
+        if (!mounted) return;
+        if (e?.code === 'permission-denied') {
+          showNotif('Firestore permission denied. Update rules for users/{uid} and subcollections.', 'error');
+        } else {
+          showNotif('Failed to load dashboard data.', 'error');
+        }
+      } finally {
+        extrasReady = true;
+        finishLoading();
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [user?.uid, showNotif]);
 
   // Check for abandoned session and handle streak breaking
   useEffect(() => {
@@ -70,31 +138,6 @@ export default function Dashboard() {
       localStorage.removeItem('bb-session-abandoned');
     }
   }, [user, showNotif]);
-  async function loadData() {
-    if (!user?.uid) return;
-    setLoading(true);
-    try {
-      const [mods, prog, userLogs] = await Promise.all([getModules(user.uid), getProgress(user.uid), getLogs(user.uid)]);
-      const today = new Date().toDateString();
-      let p = prog;
-      if (p.lastReset !== today) {
-        p = { ...p, sessions: {}, lastReset: today };
-        await saveProgress(user.uid, p);
-      }
-      setModules(mods.length > 0 ? mods : DEFAULT_MODULES);
-      setProgress(p);
-      setLogs(userLogs || []);
-    } catch (e) {
-      if (e?.code === 'permission-denied') {
-        showNotif('Firestore permission denied. Update rules for users/{uid} and subcollections.', 'error');
-      } else {
-        showNotif('Failed to load dashboard data.', 'error');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function selectModule(idx) {
     if (timerState.running) return;
     const m = modules[idx];
