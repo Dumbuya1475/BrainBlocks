@@ -1,13 +1,15 @@
 const GROQ_MODEL = import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant';
 const CLIENT_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 
-function buildPrompt({ moduleName, goal, dailyStudyTime, durationWeeks }) {
+function buildPrompt({ moduleName, moduleCode, goal, dailyStudyTime, durationWeeks }) {
   return `You are an expert curriculum designer.
 
 Your task is to generate a structured study roadmap for a student.
+Be understanding, supportive, and realistic. The student may feel overwhelmed, so break complex work into small manageable steps and keep the guidance encouraging.
 
 The student will provide:
 - module name
+- module code
 - goal
 - daily study time
 - number of weeks
@@ -20,18 +22,24 @@ Rules:
 3. Each week must contain practical tasks the student can complete.
 4. Tasks should be realistic for the given daily study time.
 5. Tasks must be concise and action-oriented.
-6. Do NOT include explanations.
+6. Each week must also include a short summary, one supportive note, and one checkpoint.
+7. The note should explain how to approach the week in plain language.
+8. Do NOT include markdown fences or extra commentary.
 7. Return ONLY valid JSON.
 
 JSON format required:
 
 {
   "module": "module name",
+  "moduleCode": "module code",
   "goal": "learning goal",
   "weeks": [
     {
       "week": 0,
       "title": "Week title",
+      "summary": "Short summary of the week",
+      "note": "Short helpful instruction or learning note",
+      "checkpoint": "What the student should be able to do by the end of the week",
       "tasks": [
         "task 1",
         "task 2",
@@ -44,6 +52,7 @@ JSON format required:
 Student input:
 
 Module: ${moduleName}
+Module Code: ${moduleCode || 'N/A'}
 Goal: ${goal}
 Daily Study Time: ${dailyStudyTime}
 Duration Weeks: ${durationWeeks}`;
@@ -55,6 +64,21 @@ function extractJson(text) {
   return JSON.parse(match[0]);
 }
 
+function normalizeWeek(week, index) {
+  const tasks = Array.isArray(week?.tasks)
+    ? week.tasks.map(task => String(task).trim()).filter(Boolean)
+    : [];
+
+  return {
+    week: typeof week?.week === 'number' ? week.week : index,
+    title: String(week?.title || `Week ${index}`).trim(),
+    summary: String(week?.summary || `Focus on the main ${index === 0 ? 'setup' : 'study'} goal for this week.`).trim(),
+    note: String(week?.note || week?.notes || 'Take the tasks one step at a time and review what feels difficult before moving on.').trim(),
+    checkpoint: String(week?.checkpoint || 'Finish the tasks for this week and confirm you can explain the key ideas without notes.').trim(),
+    tasks,
+  };
+}
+
 function validateRoadmap(roadmap, requestedWeeks) {
   if (!roadmap || typeof roadmap !== 'object') throw new Error('Invalid roadmap format.');
   if (!Array.isArray(roadmap.weeks)) throw new Error('Roadmap is missing weeks.');
@@ -62,16 +86,24 @@ function validateRoadmap(roadmap, requestedWeeks) {
     throw new Error('Roadmap weeks count does not match requested duration.');
   }
 
-  roadmap.weeks.forEach((week, index) => {
+  const normalizedWeeks = roadmap.weeks.map((week, index) => {
     if (typeof week.week !== 'number' || week.week !== index) {
       throw new Error('Roadmap weeks must start at Week 0 and continue in order.');
     }
-    if (!Array.isArray(week.tasks) || week.tasks.length === 0) {
+    const normalizedWeek = normalizeWeek(week, index);
+    if (normalizedWeek.tasks.length === 0) {
       throw new Error(`Week ${index} is missing tasks.`);
     }
+    return normalizedWeek;
   });
 
-  return roadmap;
+  return {
+    module: String(roadmap.module || '').trim(),
+    moduleCode: String(roadmap.moduleCode || '').trim(),
+    goal: String(roadmap.goal || '').trim(),
+    weeks: normalizedWeeks,
+    generatedBy: roadmap.generatedBy || 'groq',
+  };
 }
 
 function getTopicTemplates(moduleName, goal) {
@@ -197,6 +229,9 @@ function buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, du
       return {
         week: 0,
         title: `Week 0 - ${focus} setup`,
+        summary: `Set up a clean starting point for ${code ? `${code} ${focus}` : focus}.`,
+        note: `Keep this week light and practical. Organize your tools, understand the module expectations, and avoid trying to master everything at once.`,
+        checkpoint: `You have a study setup, a weekly routine, and a clear picture of what success in ${focus} looks like.`,
         tasks: [
           `Define the main target for ${code ? `${code} ${focus}` : focus}`,
           `Set up notes, folders, and tools for ${focus}`,
@@ -211,6 +246,9 @@ function buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, du
     return {
       week,
       title: `Week ${week} - ${focus} ${template.title}`,
+      summary: `Build steady progress in ${focus} with a manageable plan for Week ${week}.`,
+      note: `Prioritize understanding over speed this week. If one task feels heavy, split it into smaller study sessions and review your notes before continuing.`,
+      checkpoint: `By the end of Week ${week}, you should be able to explain the main idea and complete the practice tasks with less help.`,
       tasks: template.tasks.map(task => task.replace(/the week/gi, `Week ${week}`).replace(/module/gi, focus)),
     };
   });
@@ -269,7 +307,7 @@ function createApiError(rawText, fallbackMessage, status = 0) {
   return error;
 }
 
-async function generateViaGroqClient({ moduleName, goal, dailyStudyTime, durationWeeks }) {
+async function generateViaGroqClient({ moduleName, moduleCode, goal, dailyStudyTime, durationWeeks }) {
   if (!CLIENT_API_KEY.trim()) {
     const error = new Error('Missing VITE_GROQ_API_KEY. Add it to your .env file.');
     error.status = 401;
@@ -294,7 +332,7 @@ async function generateViaGroqClient({ moduleName, goal, dailyStudyTime, duratio
         },
         {
           role: 'user',
-          content: buildPrompt({ moduleName, goal, dailyStudyTime, durationWeeks }),
+          content: buildPrompt({ moduleName, moduleCode, goal, dailyStudyTime, durationWeeks }),
         }
       ],
     }),
@@ -312,7 +350,7 @@ async function generateViaGroqClient({ moduleName, goal, dailyStudyTime, duratio
 
 export async function generateModuleRoadmap({ moduleName, moduleCode = '', goal, dailyStudyTime, durationWeeks }) {
   try {
-    return await generateViaGroqClient({ moduleName, goal, dailyStudyTime, durationWeeks });
+    return await generateViaGroqClient({ moduleName, moduleCode, goal, dailyStudyTime, durationWeeks });
   } catch (error) {
     if (shouldUseFallback(error)) {
       return buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, durationWeeks });
