@@ -260,17 +260,18 @@ export default function Tracker() {
 
                   <details style={{ marginTop:12, border:'1px solid var(--border)', borderRadius:8, background:'var(--surface2)', padding:'10px 12px' }}>
                     <summary style={{ cursor:'pointer', listStyle:'none', fontFamily:'var(--mono)', fontSize:11, color:'var(--accent2)' }}>
-                      Expand instruction / note
+                      Expanded instruction
                     </summary>
-                    <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:10 }}>
-                      <div style={{ padding:'10px 12px', borderRadius:8, background:'rgba(124,77,255,0.08)' }}>
-                        <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginBottom:4 }}>Instruction / Note</div>
-                        <div style={{ fontSize:12, lineHeight:1.6 }}>{currentWeek.note}</div>
-                      </div>
-                      <div style={{ padding:'10px 12px', borderRadius:8, background:'rgba(0,229,255,0.08)' }}>
-                        <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginBottom:4 }}>Checkpoint</div>
-                        <div style={{ fontSize:12, lineHeight:1.6 }}>{currentWeek.checkpoint}</div>
-                      </div>
+
+                    {/* Guidance-only section: no task checklist here */}
+                    <div style={{ marginTop:10, padding:'10px 12px', borderRadius:8, background:'rgba(124,77,255,0.08)' }}>
+                      <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginBottom:4 }}>Instruction / Note</div>
+                      <div style={{ fontSize:12, lineHeight:1.6 }}>{currentWeek.note}</div>
+                    </div>
+
+                    <div style={{ marginTop:10, padding:'10px 12px', borderRadius:8, background:'rgba(0,229,255,0.08)' }}>
+                      <div style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--accent2)', marginBottom:4 }}>Checkpoint</div>
+                      <div style={{ fontSize:12, lineHeight:1.6 }}>{currentWeek.checkpoint}</div>
                     </div>
                   </details>
                 </div>
