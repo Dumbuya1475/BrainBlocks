@@ -44,10 +44,6 @@ export default function Profile() {
   const [university, setUniversity] = useState('');
   const [program, setProgram] = useState('');
   const [classGroup, setClassGroup] = useState('');
-  const [theme, setTheme] = useState(() => {
-    const saved = window.localStorage.getItem('bb-theme');
-    return saved === 'dark' ? 'dark' : 'light';
-  });
 
   const shareUrl = user?.uid ? `${window.location.origin}/u/${user.uid}` : '';
 
@@ -120,15 +116,6 @@ export default function Profile() {
       unsubscribe();
     };
   }, [user?.uid, showNotif]);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    window.localStorage.setItem('bb-theme', theme);
-  }, [theme]);
-
-  function toggleTheme() {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-  }
 
   async function toggleShare() {
     if (!user?.uid) return;
@@ -387,10 +374,10 @@ export default function Profile() {
       <div className="card" style={{ marginBottom:14 }}>
         <div className="card-label">🌓 Appearance</div>
         <p style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--muted)', lineHeight:1.7, marginBottom:12 }}>
-          Light theme is the default. You can switch to dark theme any time.
+          Dark mode is temporarily disabled. The app is currently locked to light theme.
         </p>
-        <button className="btn btn-ghost" onClick={toggleTheme}>
-          {theme === 'dark' ? '☀️ Switch to Light' : '🌙 Switch to Dark'}
+        <button className="btn btn-ghost" type="button" disabled>
+          ☀️ Light Theme Active
         </button>
       </div>
 

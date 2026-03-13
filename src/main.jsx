@@ -5,9 +5,8 @@ import App from './App';
 import { AuthProvider } from './hooks/useAuth';
 import './styles/globals.css';
 
-const savedTheme = window.localStorage.getItem('bb-theme');
-const initialTheme = savedTheme === 'dark' ? 'dark' : 'light';
-document.documentElement.setAttribute('data-theme', initialTheme);
+document.documentElement.setAttribute('data-theme', 'light');
+window.localStorage.setItem('bb-theme', 'light');
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
