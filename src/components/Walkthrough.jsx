@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getProfile, saveProfile } from '../firebase/db';
 
@@ -166,6 +166,7 @@ export default function Walkthrough({ user, installPrompt, onInstall, enabled })
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
   const [tooltip, setTooltip] = useState(null);
+  const walkthroughInitForUidRef = useRef('');
   const currentStep = STEPS[stepIndex];
   const progress = Math.round(((stepIndex + 1) / STEPS.length) * 100);
 
@@ -173,17 +174,33 @@ export default function Walkthrough({ user, installPrompt, onInstall, enabled })
   useEffect(() => {
     let active = true;
     async function load() {
-      if (!enabled || !user?.uid) { if (active) setVisible(false); return; }
+      if (!user?.uid) {
+        walkthroughInitForUidRef.current = '';
+        if (active) {
+          setVisible(false);
+          setStepIndex(0);
+        }
+        return;
+      }
+
+      if (!enabled) return;
+      if (walkthroughInitForUidRef.current === user.uid) return;
+
       try {
         const profile = await getProfile(user.uid);
         if (!active) return;
-        if (!profile?.walkthroughSeen) { setStepIndex(0); setVisible(true); }
-        else setVisible(false);
+        walkthroughInitForUidRef.current = user.uid;
+        if (!profile?.walkthroughSeen) {
+          setStepIndex(0);
+          setVisible(true);
+        } else {
+          setVisible(false);
+        }
       } catch { if (active) setVisible(false); }
     }
     load();
     return () => { active = false; };
-  }, [enabled, user]);
+  }, [enabled, user?.uid]);
 
   // Navigate to the right route for current step
   useEffect(() => {
@@ -191,7 +208,7 @@ export default function Walkthrough({ user, installPrompt, onInstall, enabled })
     if (location.pathname !== currentStep.path) {
       navigate(currentStep.path, { replace: true });
     }
-  }, [visible, stepIndex]);
+  }, [visible, currentStep?.path, location.pathname, navigate]);
 
   // Highlight target element and measure its rect
   useEffect(() => {
@@ -203,12 +220,21 @@ export default function Walkthrough({ user, installPrompt, onInstall, enabled })
     }
 
     let raf = 0;
+    let tries = 0;
+    let retryTimer = 0;
     let cleanup = () => {};
 
     const attach = () => {
       document.querySelectorAll('.tour-highlight').forEach(n => n.classList.remove('tour-highlight'));
       const el = document.querySelector(currentStep.selector);
-      if (!el) { setTargetRect(null); return; }
+      if (!el) {
+        setTargetRect(null);
+        if (tries < 16) {
+          tries += 1;
+          retryTimer = window.setTimeout(attach, 140);
+        }
+        return;
+      }
 
       el.classList.add('tour-highlight');
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -234,6 +260,7 @@ export default function Walkthrough({ user, installPrompt, onInstall, enabled })
 
     return () => {
       clearTimeout(timer);
+      clearTimeout(retryTimer);
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onReflow);
       window.removeEventListener('scroll', onReflow, true);

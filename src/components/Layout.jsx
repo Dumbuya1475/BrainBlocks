@@ -30,7 +30,7 @@ export default function Layout() {
               alignItems:'center', gap:3, padding:'10px 4px',
               textDecoration:'none',
               color: isActive ? 'var(--accent)' : 'var(--muted)',
-              fontFamily:'var(--mono)', fontSize:9,
+              fontFamily:'var(--mono)', fontSize:10,
               textTransform:'uppercase', letterSpacing:'1px',
               transition:'color 0.15s',
             })}

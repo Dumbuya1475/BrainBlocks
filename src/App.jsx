@@ -14,6 +14,26 @@ import Profile from './pages/Profile';
 import PublicProfile from './pages/PublicProfile';
 import { isNativePlatform } from './utils/nativeNotifications';
 
+function reconcileTimerState(state) {
+  if (!state || typeof state !== 'object') return state;
+  if (!state.running) return state;
+
+  const nowTs = Date.now();
+  const lastTickAt = Number(state.lastTickAt || nowTs);
+  const elapsedSec = Math.max(0, Math.floor((nowTs - lastTickAt) / 1000));
+  if (elapsedSec <= 0) {
+    return { ...state, lastTickAt: nowTs };
+  }
+
+  const nextSec = Math.max(0, Number(state.timerSec || 0) - elapsedSec);
+  return {
+    ...state,
+    timerSec: nextSec,
+    running: nextSec > 0,
+    lastTickAt: nowTs,
+  };
+}
+
 function FullPageStatus({ text }) {
   return (
     <div style={{ position:'relative', display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', fontFamily:'var(--mono)', color:'var(--accent)', fontSize:13 }}>
@@ -107,16 +127,19 @@ export default function App() {
     const interval = setInterval(() => {
       const timerState = localStorage.getItem('bb-timer');
       if (!timerState) return;
-      const state = JSON.parse(timerState);
-      if (!state.running) return;
+      try {
+        const parsed = JSON.parse(timerState);
+        const nextState = reconcileTimerState(parsed);
+        if (!nextState) return;
 
-      state.timerSec -= 1;
-      if (state.timerSec <= 0) {
-        state.timerSec = 0;
-        state.running = false;
+        const changed = JSON.stringify(parsed) !== JSON.stringify(nextState);
+        if (changed) {
+          localStorage.setItem('bb-timer', JSON.stringify(nextState));
+          setTimerForce(c => c + 1);
+        }
+      } catch {
+        // ignore malformed timer state
       }
-      localStorage.setItem('bb-timer', JSON.stringify(state));
-      setTimerForce(c => c + 1); // trigger re-render to update Layout
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -169,12 +192,10 @@ export default function App() {
   useEffect(() => {
     function handleVisibilityChange() {
       const timerState = localStorage.getItem('bb-timer');
-      const focusMode = localStorage.getItem('bb-focus-mode') === '1';
       if (!timerState) return;
       const state = JSON.parse(timerState);
       
-      if (document.hidden && focusMode && state.running && state.activeIdx !== null) {
-        // User switched away — save as abandoned session
+      if (document.hidden && state.running && state.activeIdx !== null) {
         localStorage.setItem('bb-session-abandoned', '1');
       }
     }

@@ -1,21 +1,46 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProgress, saveProgress, getLogs, subscribeModules } from '../firebase/db';
-import { DEFAULT_MODULES } from '../data/curriculum';
 import { Notif, useNotif } from '../components/Notif';
+
+function getDateFromLog(log) {
+  if (!log) return null;
+  if (log.date?.toDate && typeof log.date.toDate === 'function') {
+    const d = log.date.toDate();
+    return Number.isNaN(d?.getTime?.()) ? null : d;
+  }
+  if (log.createdAt?.toDate && typeof log.createdAt.toDate === 'function') {
+    const d = log.createdAt.toDate();
+    return Number.isNaN(d?.getTime?.()) ? null : d;
+  }
+  const fallback = new Date(log.dateStr || log.createdAt || log.date);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
+function dayKey(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
 
 function computeStreak(logs) {
   if (!logs.length) return 0;
   const days = new Set(
-    logs.map(l => {
-      try { const d = new Date(l.dateStr || l.createdAt); return isNaN(d) ? null : d.toDateString(); }
-      catch { return null; }
-    }).filter(Boolean)
+    logs.map(getDateFromLog).filter(Boolean).map(dayKey)
   );
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  let cursor = days.has(dayKey(today)) ? new Date(today) : new Date(yesterday);
+
   let streak = 0;
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  while (days.has(d.toDateString())) { streak++; d.setDate(d.getDate() - 1); }
+  while (days.has(dayKey(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
   return streak;
 }
 
@@ -31,6 +56,7 @@ export default function Dashboard() {
   // Timer state synced from localStorage
   const [timerState, setTimerState] = useState({ activeIdx: null, timerSec: 0, timerTotal: 0, running: false });
   const [focusMode, setFocusMode] = useState(localStorage.getItem('bb-focus-mode') === '1');
+  const timerDoneNotifiedRef = useRef(false);
 
   // Clock
   const [now, setNow] = useState(new Date());
@@ -53,7 +79,8 @@ export default function Dashboard() {
 
   // Notify when timer finished
   useEffect(() => {
-    if (!timerState.running && timerState.timerSec === 0 && timerState.activeIdx !== null) {
+    if (!timerState.running && timerState.timerSec === 0 && timerState.activeIdx !== null && !timerDoneNotifiedRef.current) {
+      timerDoneNotifiedRef.current = true;
       showNotif("⏰ Time's up! Great work!");
     }
   }, [timerState.timerSec, timerState.running, timerState.activeIdx, showNotif]);
@@ -81,7 +108,7 @@ export default function Dashboard() {
       user.uid,
       mods => {
         if (!mounted) return;
-        setModules(mods.length > 0 ? mods : DEFAULT_MODULES);
+        setModules(mods);
         modulesReady = true;
         finishLoading();
       },
@@ -142,14 +169,29 @@ export default function Dashboard() {
     if (timerState.running) return;
     const m = modules[idx];
     const secs = (m.duration || 30) * 60;
-    const newState = { activeIdx: idx, timerSec: secs, timerTotal: secs, running: false };
+    timerDoneNotifiedRef.current = false;
+    const newState = {
+      activeIdx: idx,
+      timerSec: secs,
+      timerTotal: secs,
+      running: false,
+      startedAt: null,
+      lastTickAt: Date.now(),
+    };
     localStorage.setItem('bb-timer', JSON.stringify(newState));
     setTimerState(newState);
   }
 
   function toggleTimer() {
     if (timerState.activeIdx === null) { showNotif('Pick a study block first!', 'error'); return; }
-    const newState = { ...timerState, running: !timerState.running };
+    const running = !timerState.running;
+    const nowTs = Date.now();
+    const newState = {
+      ...timerState,
+      running,
+      startedAt: running ? (timerState.startedAt || nowTs) : timerState.startedAt || nowTs,
+      lastTickAt: nowTs,
+    };
     localStorage.setItem('bb-timer', JSON.stringify(newState));
     setTimerState(newState);
   }
@@ -157,7 +199,8 @@ export default function Dashboard() {
   function resetTimer() {
     if (timerState.activeIdx !== null) {
       const secs = (modules[timerState.activeIdx]?.duration || 30) * 60;
-      const newState = { ...timerState, timerSec: secs, running: false };
+      timerDoneNotifiedRef.current = false;
+      const newState = { ...timerState, timerSec: secs, running: false, startedAt: null, lastTickAt: Date.now() };
       localStorage.setItem('bb-timer', JSON.stringify(newState));
       setTimerState(newState);
     }
@@ -165,11 +208,17 @@ export default function Dashboard() {
 
   async function markDone() {
     if (timerState.activeIdx === null) return;
+    if (timerState.timerSec > 0) {
+      showNotif('Finish the timer first before marking this block done.', 'error');
+      return;
+    }
+
     const key = modules[timerState.activeIdx]?.id || modules[timerState.activeIdx]?.name;
     const updated = { ...progress, sessions: { ...progress.sessions, [key]: true } };
     setProgress(updated);
     await saveProgress(user.uid, updated);
-    const newState = { activeIdx: null, timerSec: 0, timerTotal: 0, running: false };
+    timerDoneNotifiedRef.current = false;
+    const newState = { activeIdx: null, timerSec: 0, timerTotal: 0, running: false, startedAt: null, lastTickAt: Date.now() };
     localStorage.setItem('bb-timer', JSON.stringify(newState));
     setTimerState(newState);
     showNotif('✓ Session marked complete!');
@@ -263,7 +312,9 @@ export default function Dashboard() {
                 {timerState.running ? 'PAUSE' : activeModule ? 'START' : 'START'}
               </button>
               <button className="btn btn-ghost" onClick={resetTimer}>RESET</button>
-              <button className="btn btn-danger" onClick={markDone}>DONE ✓</button>
+              <button className="btn btn-danger" onClick={markDone} disabled={timerState.activeIdx === null || timerState.timerSec > 0}>
+                DONE ✓
+              </button>
             </div>
           </div>
 

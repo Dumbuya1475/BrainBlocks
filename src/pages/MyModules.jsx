@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { addModule, updateModule, deleteModule, getProgress, subscribeModules } from '../firebase/db';
-import { DEFAULT_MODULES } from '../data/curriculum';
 import { Notif, useNotif } from '../components/Notif';
 import { generateModuleRoadmap } from '../services/geminiRoadmap';
 import { getRoadmapStats } from '../utils/roadmapProgress';
 
-const COLORS = ['#00e5ff', '#7c4dff', '#ff6d3a', '#ffd740', '#00e676', '#e040fb', '#ff5252', '#69f0ae'];
-const ICONS = ['💻', '🗄️', '📐', '🌐', '📝', '📚', '🧮', '🔬', '🎨', '🧪', '⚙️', '📡', '🔐', '📊', '🧠'];
+const COLORS = [
+  '#00e5ff', '#7c4dff', '#ff6d3a', '#ffd740', '#00e676', '#e040fb', '#ff5252', '#69f0ae',
+  '#40c4ff', '#536dfe', '#ff8a65', '#ffee58', '#26a69a', '#ab47bc', '#ef5350', '#66bb6a',
+  '#29b6f6', '#8e24aa', '#ff7043', '#fdd835', '#26c6da', '#5c6bc0', '#ffa726', '#9ccc65',
+];
+const ICONS = [
+  '💻', '🗄️', '📐', '🌐', '📝', '📚', '🧮', '🔬', '🎨', '🧪', '⚙️', '📡', '🔐', '📊', '🧠',
+  '🧾', '📁', '🧬', '🔭', '🛰️', '📈', '📉', '🏗️', '🛠️', '🧑‍💻', '🗂️', '💡', '🧭', '📘', '📗',
+];
 const MAX_WEEKS = 12;
 
 function formatDailyStudyTime(value) {
@@ -266,29 +272,6 @@ export default function MyModules() {
     }
   }
 
-  async function seedDefaults() {
-    if (!user?.uid) return;
-    setSaving(true);
-    try {
-      for (const m of DEFAULT_MODULES) {
-        await addModule(user.uid, {
-          ...m,
-          goal: `Build stronger understanding in ${m.name}`,
-          moduleCode: '',
-          dailyStudyTime: m.duration,
-          durationWeeks: 12,
-          roadmap: null,
-        });
-      }
-      showNotif('Default modules added. They will sync to your other devices.', 'info');
-    } catch (e) {
-      if (e?.code === 'permission-denied') showNotif('Permission denied while seeding modules.', 'error');
-      else showNotif('Failed to add default modules.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function regenerateRoadmap(mod) {
     if (!user?.uid || !mod?.id) return;
     setGeneratingId(mod.id);
@@ -339,11 +322,8 @@ export default function MyModules() {
           {modules.length === 0 && (
             <div className="card" style={{ textAlign: 'center', marginBottom: 14 }}>
               <p style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-                No modules yet. Add your own or load the defaults.
+                No modules yet. Add your first module to get started.
               </p>
-              <button className="btn btn-ghost" onClick={seedDefaults} disabled={saving}>
-                Load Default Modules
-              </button>
             </div>
           )}
 
@@ -423,114 +403,130 @@ export default function MyModules() {
           </div>
 
           {showForm ? (
-            <div className="card purple fade-in">
-              <div className="card-label">{editingId ? 'Edit Module' : 'New Module'}</div>
-              <p style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
-                {editingId
-                  ? 'Update the module details here. If the goal changes a lot, regenerate the AI roadmap before saving.'
-                  : 'Create a module first, then generate an AI roadmap that includes weekly notes and checkpoints.'}
-              </p>
-              <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input className="input" placeholder="Module name (e.g. Machine Learning)" value={name} onChange={e => setName(e.target.value)} required />
-                <input className="input" placeholder="Module code (optional, e.g. CSC101)" value={moduleCode} onChange={e => setModuleCode(e.target.value.toUpperCase())} maxLength={20} />
-                <textarea
-                  className="input"
-                  placeholder="Learning goal (e.g. I want a clear, practical plan that helps me build confidence step by step)"
-                  value={goal}
-                  onChange={e => setGoal(e.target.value)}
-                  style={{ minHeight: 78 }}
-                />
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 420,
+                background: 'rgba(0,0,0,0.52)',
+                padding: '20px 12px',
+                overflowY: 'auto',
+              }}
+              onClick={() => { setShowForm(false); resetForm(); }}
+            >
+              <div
+                className="card purple fade-in"
+                style={{ maxWidth: 560, margin: '0 auto' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="card-label">{editingId ? 'Edit Module' : 'New Module'}</div>
+                <p style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
+                  {editingId
+                    ? 'Update the module details here. If the goal changes a lot, regenerate the AI roadmap before saving.'
+                    : 'Create a module first, then generate an AI roadmap that includes weekly notes and checkpoints.'}
+                </p>
+                <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <input className="input" placeholder="Module name (e.g. Machine Learning)" value={name} onChange={e => setName(e.target.value)} required />
+                  <input className="input" placeholder="Module code (optional, e.g. CSC101)" value={moduleCode} onChange={e => setModuleCode(e.target.value.toUpperCase())} maxLength={20} />
+                  <textarea
+                    className="input"
+                    placeholder="Learning goal (e.g. I want a clear, practical plan that helps me build confidence step by step)"
+                    value={goal}
+                    onChange={e => setGoal(e.target.value)}
+                    style={{ minHeight: 78 }}
+                  />
 
-                <div className="module-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 10 }}>
-                  <div>
-                    <label style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Focus block</label>
-                    <input className="input" type="number" min={5} max={180} value={duration} onChange={e => setDuration(e.target.value)} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Daily time</label>
-                    <input className="input" type="number" min={15} max={240} value={dailyStudyTime} onChange={e => setDailyStudyTime(e.target.value)} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Weeks</label>
-                    <input
-                      className="input"
-                      type="number"
-                      min={1}
-                      max={MAX_WEEKS}
-                      value={durationWeeks}
-                      onChange={e => setDurationWeeks(e.target.value)}
-                      onBlur={e => {
-                        const v = Math.min(MAX_WEEKS, Math.max(1, Number(e.target.value) || 1));
-                        setDurationWeeks(String(v));
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Color</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {COLORS.map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setColor(c)}
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 6,
-                          background: c,
-                          border: 'none',
-                          outline: color === c ? '2px solid white' : 'none',
-                          outlineOffset: 2,
-                          cursor: 'pointer',
+                  <div className="module-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 10 }}>
+                    <div>
+                      <label style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Focus block</label>
+                      <input className="input" type="number" min={5} max={180} value={duration} onChange={e => setDuration(e.target.value)} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Daily time</label>
+                      <input className="input" type="number" min={15} max={240} value={dailyStudyTime} onChange={e => setDailyStudyTime(e.target.value)} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Weeks</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min={1}
+                        max={MAX_WEEKS}
+                        value={durationWeeks}
+                        onChange={e => setDurationWeeks(e.target.value)}
+                        onBlur={e => {
+                          const v = Math.min(MAX_WEEKS, Math.max(1, Number(e.target.value) || 1));
+                          setDurationWeeks(String(v));
                         }}
                       />
-                    ))}
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Icon</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {ICONS.map(ic => (
-                      <button
-                        key={ic}
-                        type="button"
-                        onClick={() => setIcon(ic)}
-                        style={{
-                          fontSize: 20,
-                          width: 34,
-                          height: 34,
-                          borderRadius: 6,
-                          border: `1px solid ${icon === ic ? 'var(--accent2)' : 'var(--border)'}`,
-                          background: icon === ic ? 'rgba(124,77,255,0.2)' : 'var(--surface2)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {ic}
-                      </button>
-                    ))}
+                  <div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Color</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {COLORS.map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setColor(c)}
+                          style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 6,
+                            background: c,
+                            border: 'none',
+                            outline: color === c ? '2px solid white' : 'none',
+                            outlineOffset: 2,
+                            cursor: 'pointer',
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button className="btn btn-ghost" type="button" onClick={handleGenerateRoadmap} disabled={saving || generatingId === (editingId || 'new')}>
-                    {generatingId === (editingId || 'new') ? 'Generating...' : (generatedRoadmap ? 'Refresh AI Roadmap' : 'Generate AI Roadmap')}
-                  </button>
-                  <button className="btn btn-purple" type="submit" disabled={saving}>
-                    {saving ? 'Saving...' : (editingId ? 'Save Changes' : 'Add Module')}
-                  </button>
-                  <button className="btn btn-ghost" type="button" onClick={() => { setShowForm(false); resetForm(); }}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
+                  <div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Icon</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {ICONS.map(ic => (
+                        <button
+                          key={ic}
+                          type="button"
+                          onClick={() => setIcon(ic)}
+                          style={{
+                            fontSize: 20,
+                            width: 34,
+                            height: 34,
+                            borderRadius: 6,
+                            border: `1px solid ${icon === ic ? 'var(--accent2)' : 'var(--border)'}`,
+                            background: icon === ic ? 'rgba(124,77,255,0.2)' : 'var(--surface2)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {ic}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <RoadmapPreview roadmap={generatedRoadmap} accentColor={color} />
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button data-tour="modules-generate" className="btn btn-ghost" type="button" onClick={handleGenerateRoadmap} disabled={saving || generatingId === (editingId || 'new')}>
+                      {generatingId === (editingId || 'new') ? 'Generating...' : (generatedRoadmap ? 'Refresh AI Roadmap' : 'Generate AI Roadmap')}
+                    </button>
+                    <button className="btn btn-purple" type="submit" disabled={saving}>
+                      {saving ? 'Saving...' : (editingId ? 'Save Changes' : 'Add Module')}
+                    </button>
+                    <button className="btn btn-ghost" type="button" onClick={() => { setShowForm(false); resetForm(); }}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+
+                <RoadmapPreview roadmap={generatedRoadmap} accentColor={color} />
+              </div>
             </div>
           ) : (
-            <button className="btn btn-purple" onClick={openCreateForm} style={{ width: '100%', justifyContent: 'center', padding: 12 }}>
+            <button data-tour="modules-add" className="btn btn-purple" onClick={openCreateForm} style={{ width: '100%', justifyContent: 'center', padding: 12 }}>
               Add New Module
             </button>
           )}

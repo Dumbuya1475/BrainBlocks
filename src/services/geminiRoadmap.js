@@ -22,10 +22,15 @@ Rules:
 3. Each week must contain practical tasks the student can complete.
 4. Tasks should be realistic for the given daily study time.
 5. Tasks must be concise and action-oriented.
-6. Each week must also include a short summary, one supportive note, and one checkpoint.
-7. The note should explain how to approach the week in plain language.
-8. Do NOT include markdown fences or extra commentary.
-7. Return ONLY valid JSON.
+6. Each week must include exactly 5 tasks.
+7. Include at least one assessment-style task per week (quiz, self-test, practice questions, or mini review).
+8. Avoid vague reading tasks like "Read chapter 1" unless you also name a specific resource.
+9. Prefer specific actions such as "Watch topic intro video, then summarize 5 points" or "Complete Exercise 1-5 from provided lecture sheet".
+10. Week 0 must include tool installation and environment setup steps when the module needs software/tools.
+11. Each week must also include a short summary, one supportive note, and one checkpoint.
+12. The note should explain how to approach the week in plain language.
+13. Do NOT include markdown fences or extra commentary.
+14. Return ONLY valid JSON.
 
 JSON format required:
 
@@ -64,10 +69,55 @@ function extractJson(text) {
   return JSON.parse(match[0]);
 }
 
+function normalizeTaskText(task, weekIndex) {
+  const base = String(task || '').trim();
+  if (!base) return '';
+
+  const vagueReadPattern = /^(read|study)\s+(chapter|unit|topic|section)\b/i;
+  if (vagueReadPattern.test(base) || /database concepts|introduction to/i.test(base)) {
+    return weekIndex === 0
+      ? 'Use your course outline to pick one official starter resource, then summarize 5 key ideas in your notes.'
+      : 'Choose one specific course resource for this topic, then summarize 5 key ideas and solve 3 quick checks.';
+  }
+
+  return base;
+}
+
+function ensureWeekZeroSetupTasks(tasks, moduleName) {
+  const hasInstall = tasks.some(task => /(install|setup|configure|environment|ide|tool|dependencies|sdk|compiler)/i.test(task));
+  if (hasInstall) return tasks;
+
+  const next = [...tasks];
+  next.unshift(`Identify required tools for ${moduleName} (IDE, runtime, database, or simulator) and install them.`);
+  next.unshift(`Create and test your ${moduleName} environment setup (open project, run one basic command, verify output).`);
+  return next;
+}
+
+function ensureAssessmentTask(tasks, weekIndex) {
+  const hasAssessment = tasks.some(task => /(quiz|test|assessment|mock|practice questions|self-check|past paper|exam|review without notes)/i.test(task));
+  if (hasAssessment) return tasks;
+  return [...tasks, `Do a short self-test for Week ${weekIndex} without notes and review mistakes.`];
+}
+
+function ensureTaskCount(tasks, weekIndex) {
+  const next = [...tasks];
+  while (next.length < 5) {
+    next.push(`Complete one focused practice activity for Week ${weekIndex} and record what you learned.`);
+  }
+  return next.slice(0, 5);
+}
+
 function normalizeWeek(week, index) {
   const tasks = Array.isArray(week?.tasks)
-    ? week.tasks.map(task => String(task).trim()).filter(Boolean)
+    ? week.tasks.map(task => normalizeTaskText(task, index)).filter(Boolean)
     : [];
+
+  let normalizedTasks = [...tasks];
+  if (index === 0) {
+    normalizedTasks = ensureWeekZeroSetupTasks(normalizedTasks, String(week?.title || week?.module || 'this module'));
+  }
+  normalizedTasks = ensureAssessmentTask(normalizedTasks, index);
+  normalizedTasks = ensureTaskCount(normalizedTasks, index);
 
   return {
     week: typeof week?.week === 'number' ? week.week : index,
@@ -75,7 +125,7 @@ function normalizeWeek(week, index) {
     summary: String(week?.summary || `Focus on the main ${index === 0 ? 'setup' : 'study'} goal for this week.`).trim(),
     note: String(week?.note || week?.notes || 'Take the tasks one step at a time and review what feels difficult before moving on.').trim(),
     checkpoint: String(week?.checkpoint || 'Finish the tasks for this week and confirm you can explain the key ideas without notes.').trim(),
-    tasks,
+    tasks: normalizedTasks,
   };
 }
 
@@ -235,8 +285,10 @@ function buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, du
         tasks: [
           `Define the main target for ${code ? `${code} ${focus}` : focus}`,
           `Set up notes, folders, and tools for ${focus}`,
+          `Install and configure required tools for ${focus} (IDE, runtime, packages, and any database/simulator).`,
+          `Run one quick environment check command and confirm everything works before deep study.`,
           `Create a ${dailyStudyTime} routine for this module`,
-          `Break ${target || focus} into weekly checkpoints`,
+          `Run a quick baseline self-test to identify your strongest and weakest areas in ${focus}`,
         ],
       };
     }
@@ -249,7 +301,13 @@ function buildFallbackRoadmap({ moduleName, moduleCode, goal, dailyStudyTime, du
       summary: `Build steady progress in ${focus} with a manageable plan for Week ${week}.`,
       note: `Prioritize understanding over speed this week. If one task feels heavy, split it into smaller study sessions and review your notes before continuing.`,
       checkpoint: `By the end of Week ${week}, you should be able to explain the main idea and complete the practice tasks with less help.`,
-      tasks: template.tasks.map(task => task.replace(/the week/gi, `Week ${week}`).replace(/module/gi, focus)),
+      tasks: ensureTaskCount(
+        ensureAssessmentTask(
+          template.tasks.map(task => task.replace(/the week/gi, `Week ${week}`).replace(/module/gi, focus)),
+          week
+        ),
+        week
+      ),
     };
   });
 

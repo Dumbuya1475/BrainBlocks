@@ -170,10 +170,3 @@ export const WEEKS = [
   ]},
 ];
 
-export const DEFAULT_MODULES = [
-  { name:'Structured Programming', duration:55, color:'#00e5ff', icon:'💻' },
-  { name:'Database Practice',       duration:30, color:'#7c4dff', icon:'🗄️' },
-  { name:'Software Engineering',    duration:30, color:'#ff6d3a', icon:'📐' },
-  { name:'Networking / Git',        duration:30, color:'#ffd740', icon:'🌐' },
-  { name:'Review & Document',       duration:13, color:'#00e676', icon:'📝' },
-];
