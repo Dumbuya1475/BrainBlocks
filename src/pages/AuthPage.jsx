@@ -44,6 +44,12 @@ export default function AuthPage() {
     if (code === 'auth/popup-closed-by-user') {
       return 'Google sign-in was canceled. Please try again.';
     }
+    if (code === 'auth/google-needs-password-link') {
+      return 'This email already has a password account. Sign in once with email/password to automatically link Google for future login.';
+    }
+    if (code === 'auth/google-link-failed') {
+      return 'Signed in, but Google linking failed. Try Google sign-in again after this login.';
+    }
     if (code === 'auth/invalid-credential') {
       return 'Invalid credentials. Check your email and password.';
     }

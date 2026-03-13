@@ -8,21 +8,45 @@ import { getRoadmapStats } from '../utils/roadmapProgress';
 import { requestNotificationPermission, scheduleDailyReminder, cancelDailyReminder, isNativePlatform, getNotificationPermissionStatus } from '../utils/nativeNotifications';
 import html2canvas from 'html2canvas';
 
+function getDateFromLog(log) {
+  if (!log) return null;
+  if (log.date?.toDate && typeof log.date.toDate === 'function') {
+    const d = log.date.toDate();
+    return Number.isNaN(d?.getTime?.()) ? null : d;
+  }
+  if (log.createdAt?.toDate && typeof log.createdAt.toDate === 'function') {
+    const d = log.createdAt.toDate();
+    return Number.isNaN(d?.getTime?.()) ? null : d;
+  }
+  const fallback = new Date(log.dateStr || log.createdAt || log.date);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
+function dayKey(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
 function computeStreak(logs) {
   if (!logs.length) return 0;
   const days = new Set(
-    logs.map(l => {
-      try { const d = new Date(l.dateStr || l.createdAt); return isNaN(d) ? null : d.toDateString(); }
-      catch { return null; }
-    }).filter(Boolean)
+    logs.map(getDateFromLog).filter(Boolean).map(dayKey)
   );
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  let cursor = days.has(dayKey(today)) ? new Date(today) : new Date(yesterday);
+
   let streak = 0;
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  while (days.has(d.toDateString())) {
+  while (days.has(dayKey(cursor))) {
     streak++;
-    d.setDate(d.getDate() - 1);
+    cursor.setDate(cursor.getDate() - 1);
   }
+
   return streak;
 }
 

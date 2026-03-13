@@ -5,6 +5,7 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signInWithCredential,
+  linkWithCredential,
   GoogleAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -17,6 +18,8 @@ import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 
 const AuthContext = createContext(null);
+let pendingGoogleCredential = null;
+let pendingGoogleEmail = '';
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
@@ -69,6 +72,16 @@ export function AuthProvider({ children }) {
         await syncProfileSafe(result.user);
         return result.user;
       } catch (e) {
+        if (e?.code === 'auth/account-exists-with-different-credential') {
+          pendingGoogleCredential = GoogleAuthProvider.credential(
+            e?.credential?.idToken || null,
+            e?.credential?.accessToken || null
+          );
+          pendingGoogleEmail = String(e?.customData?.email || '').toLowerCase();
+          const err = new Error('Use your existing email/password once to link Google sign-in to this account.');
+          err.code = 'auth/google-needs-password-link';
+          throw err;
+        }
         const err = new Error(e?.message || 'Native Google sign-in failed.');
         err.code = e?.code || 'auth/native-google-failed';
         throw err;
@@ -77,9 +90,19 @@ export function AuthProvider({ children }) {
 
     try {
       const result = await signInWithPopup(auth, provider);
+      pendingGoogleCredential = null;
+      pendingGoogleEmail = '';
       await syncProfileSafe(result.user);
       return result.user;
     } catch (e) {
+      if (e?.code === 'auth/account-exists-with-different-credential') {
+        pendingGoogleCredential = GoogleAuthProvider.credentialFromError(e);
+        pendingGoogleEmail = String(e?.customData?.email || '').toLowerCase();
+        const err = new Error('Use your existing email/password once to link Google sign-in to this account.');
+        err.code = 'auth/google-needs-password-link';
+        throw err;
+      }
+
       const shouldFallbackToRedirect = [
         'auth/popup-blocked',
         'auth/cancelled-popup-request',
@@ -95,7 +118,38 @@ export function AuthProvider({ children }) {
   }
 
   async function loginWithEmail(email, password) {
-    return await signInWithEmailAndPassword(auth, email, password);
+    const result = await signInWithEmailAndPassword(auth, email, password);
+
+    const normalizedEmail = String(email || '').toLowerCase();
+    const shouldLinkPendingGoogle = Boolean(
+      pendingGoogleCredential &&
+      (!pendingGoogleEmail || pendingGoogleEmail === normalizedEmail)
+    );
+
+    if (shouldLinkPendingGoogle && result?.user) {
+      try {
+        await linkWithCredential(result.user, pendingGoogleCredential);
+      } catch (e) {
+        const linkCode = e?.code || '';
+        const safeToIgnore = [
+          'auth/provider-already-linked',
+          'auth/credential-already-in-use',
+          'auth/email-already-in-use',
+        ].includes(linkCode);
+
+        if (!safeToIgnore) {
+          const err = new Error(e?.message || 'Failed to link Google sign-in to this account.');
+          err.code = linkCode || 'auth/google-link-failed';
+          throw err;
+        }
+      } finally {
+        pendingGoogleCredential = null;
+        pendingGoogleEmail = '';
+      }
+    }
+
+    await syncProfileSafe(result.user);
+    return result.user;
   }
 
   async function registerWithEmail(email, password, name) {
@@ -106,6 +160,8 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
+    pendingGoogleCredential = null;
+    pendingGoogleEmail = '';
     await signOut(auth);
   }
 
